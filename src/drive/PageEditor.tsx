@@ -10,19 +10,23 @@ import {
   List,
   ListChecks,
   ListOrdered,
+  Minus,
   Quote,
   Strikethrough,
   Table as TableIcon,
 } from 'lucide-react'
-import { useRef, useState, type ReactNode } from 'react'
+import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { createFile } from './driveApi'
 import {
+  indentLines,
   insertCodeBlock,
+  insertHorizontalRule,
   insertLink,
   insertTable,
+  outdentLines,
   setHeadingLevel,
   togglePrefixLines,
   wrapSelection,
@@ -91,6 +95,19 @@ export function PageEditor({
     })
   }
 
+  function handleTextareaKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key !== 'Tab') return
+    e.preventDefault()
+    const hasSelection = e.currentTarget.selectionStart !== e.currentTarget.selectionEnd
+    if (e.shiftKey) {
+      applyCommand(outdentLines)
+    } else if (hasSelection) {
+      applyCommand(indentLines)
+    } else {
+      insertAtCursor('  ')
+    }
+  }
+
   async function handleImageUpload(file: File) {
     setIsUploading(true)
     setError(null)
@@ -141,6 +158,7 @@ export function PageEditor({
           className="min-h-[400px] flex-1 resize-none font-mono text-sm"
           value={content}
           onChange={(e) => setContent(e.target.value)}
+          onKeyDown={handleTextareaKeyDown}
           spellCheck={false}
         />
         <div className="flex-1 overflow-y-auto border-t pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-4">
@@ -217,6 +235,9 @@ function MarkdownToolbar({ onCommand, isUploading, onUploadImage }: MarkdownTool
       </ToolbarButton>
       <ToolbarButton label="Tabla" onClick={() => onCommand(insertTable)}>
         <TableIcon />
+      </ToolbarButton>
+      <ToolbarButton label="Línea horizontal" onClick={() => onCommand(insertHorizontalRule)}>
+        <Minus />
       </ToolbarButton>
 
       <Separator orientation="vertical" className="mx-1 h-5" />

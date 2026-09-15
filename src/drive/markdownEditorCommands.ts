@@ -80,3 +80,47 @@ export function insertTable(sel: EditorSelection): EditorSelection {
   const value2 = value.slice(0, start) + table + value.slice(start)
   return { value: value2, selectionStart: start + table.length, selectionEnd: start + table.length }
 }
+
+/** Inserts a horizontal rule at the cursor, on its own blank-line-separated block. */
+export function insertHorizontalRule(sel: EditorSelection): EditorSelection {
+  const { value, selectionStart: start } = sel
+  const insert = '\n\n---\n\n'
+  const value2 = value.slice(0, start) + insert + value.slice(start)
+  const pos = start + insert.length
+  return { value: value2, selectionStart: pos, selectionEnd: pos }
+}
+
+const INDENT = '  '
+
+/** Indents every line touched by the selection by one step (used for Tab with a selection). */
+export function indentLines(sel: EditorSelection): EditorSelection {
+  const { value, selectionStart: start, selectionEnd: end } = sel
+  const { lineStart, lineEnd } = lineBounds(value, start, end)
+  const block = value.slice(lineStart, lineEnd)
+  const newBlock = block
+    .split('\n')
+    .map((line) => INDENT + line)
+    .join('\n')
+  const value2 = value.slice(0, lineStart) + newBlock + value.slice(lineEnd)
+  const delta = newBlock.length - block.length
+  return { value: value2, selectionStart: start + INDENT.length, selectionEnd: end + delta }
+}
+
+/** Outdents every line touched by the selection by up to one step (used for Shift+Tab). */
+export function outdentLines(sel: EditorSelection): EditorSelection {
+  const { value, selectionStart: start, selectionEnd: end } = sel
+  const { lineStart, lineEnd } = lineBounds(value, start, end)
+  const block = value.slice(lineStart, lineEnd)
+  let firstLineRemoved = 0
+
+  const newLines = block.split('\n').map((line, i) => {
+    const removed = line.startsWith('\t') ? 1 : (line.match(/^ {1,2}/)?.[0].length ?? 0)
+    if (i === 0) firstLineRemoved = removed
+    return line.slice(removed)
+  })
+  const newBlock = newLines.join('\n')
+  const value2 = value.slice(0, lineStart) + newBlock + value.slice(lineEnd)
+  const delta = newBlock.length - block.length
+
+  return { value: value2, selectionStart: Math.max(lineStart, start - firstLineRemoved), selectionEnd: end + delta }
+}

@@ -21,6 +21,7 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { createFile } from './driveApi'
 import {
+  getListContinuation,
   indentLines,
   insertCodeBlock,
   insertHorizontalRule,
@@ -96,15 +97,46 @@ export function PageEditor({
   }
 
   function handleTextareaKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key !== 'Tab') return
-    e.preventDefault()
-    const hasSelection = e.currentTarget.selectionStart !== e.currentTarget.selectionEnd
-    if (e.shiftKey) {
-      applyCommand(outdentLines)
-    } else if (hasSelection) {
-      applyCommand(indentLines)
-    } else {
-      insertAtCursor('  ')
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      const hasSelection = e.currentTarget.selectionStart !== e.currentTarget.selectionEnd
+      if (e.shiftKey) {
+        applyCommand(outdentLines)
+      } else if (hasSelection) {
+        applyCommand(indentLines)
+      } else {
+        insertAtCursor('  ')
+      }
+      return
+    }
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      const textarea = e.currentTarget
+      if (textarea.selectionStart !== textarea.selectionEnd) return
+
+      const { value } = textarea
+      const cursor = textarea.selectionStart
+      const lineStart = value.lastIndexOf('\n', cursor - 1) + 1
+      const nextBreak = value.indexOf('\n', cursor)
+      const lineEnd = nextBreak === -1 ? value.length : nextBreak
+      const continuation = getListContinuation(value.slice(lineStart, lineEnd))
+      if (!continuation) return
+
+      e.preventDefault()
+      // Terminating: clear the empty item's marker in place (no extra line break).
+      // Continuing: keep the current line as-is, add a new line with the next marker after the cursor.
+      const newValue = continuation.terminate
+        ? value.slice(0, lineStart) + continuation.insert + value.slice(cursor)
+        : value.slice(0, cursor) + '\n' + continuation.insert + value.slice(cursor)
+      const newPos = continuation.terminate
+        ? lineStart + continuation.insert.length
+        : cursor + 1 + continuation.insert.length
+
+      setContent(newValue)
+      requestAnimationFrame(() => {
+        textarea.focus()
+        textarea.selectionStart = textarea.selectionEnd = newPos
+      })
     }
   }
 
@@ -161,7 +193,7 @@ export function PageEditor({
           onKeyDown={handleTextareaKeyDown}
           spellCheck={false}
         />
-        <div className="flex-1 overflow-y-auto border-t pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-4">
+        <div className="prose dark:prose-invert max-w-none flex-1 overflow-y-auto border-t pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-4">
           <MarkdownView
             content={content}
             assets={[...assets, ...pendingAssets]}

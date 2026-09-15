@@ -4,6 +4,41 @@ export interface EditorSelection {
   selectionEnd: number
 }
 
+interface ListContinuation {
+  /** Text to insert after the newline to continue the list; empty when terminating it. */
+  insert: string
+  /** True when the current item was empty — the list ends and its marker is cleared instead of repeated. */
+  terminate: boolean
+}
+
+/**
+ * Given the current line's text, figures out what pressing Enter inside a list item should do:
+ * continue it with the next marker (incrementing numbered lists), or — if the item is empty —
+ * end the list. Returns null when the line isn't a list item at all.
+ */
+export function getListContinuation(line: string): ListContinuation | null {
+  const checklist = line.match(/^(\s*)([-*+])\s+\[[ xX]\]\s?(.*)$/)
+  if (checklist) {
+    const [, indent, marker, rest] = checklist
+    return rest.trim() === '' ? { insert: indent, terminate: true } : { insert: `${indent}${marker} [ ] `, terminate: false }
+  }
+
+  const ordered = line.match(/^(\s*)(\d+)([.)])\s+(.*)$/)
+  if (ordered) {
+    const [, indent, num, delim, rest] = ordered
+    if (rest.trim() === '') return { insert: indent, terminate: true }
+    return { insert: `${indent}${Number(num) + 1}${delim} `, terminate: false }
+  }
+
+  const bullet = line.match(/^(\s*)([-*+])\s+(.*)$/)
+  if (bullet) {
+    const [, indent, marker, rest] = bullet
+    return rest.trim() === '' ? { insert: indent, terminate: true } : { insert: `${indent}${marker} `, terminate: false }
+  }
+
+  return null
+}
+
 /** Wraps the selection with `before`/`after` (e.g. bold, italic, inline code). */
 export function wrapSelection(sel: EditorSelection, before: string, after: string = before): EditorSelection {
   const { value, selectionStart: start, selectionEnd: end } = sel

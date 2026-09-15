@@ -85,7 +85,7 @@ export function WikiTreeView({
           <Button
             variant="ghost"
             size="sm"
-            className="text-muted-foreground flex-1 justify-start truncate text-xs uppercase"
+            className="text-muted-foreground flex-1 justify-start truncate text-xs"
             onClick={() => onSelectSection(section)}
           >
             {section.name}

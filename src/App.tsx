@@ -10,7 +10,7 @@ import {
   Star,
   Trash2,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import { setPageContent } from './cache/pageCache'
 import { TopBar } from './components/TopBar'
@@ -205,18 +205,43 @@ function WikiExplorer({
     [tree, viewedSection],
   )
   const pathIndex = useMemo(() => (tree ? buildPathIndex(tree) : null), [tree])
+  // The page id from a shared "#page=<id>" link, if any — kept until found (see effect below),
+  // since the first tree available can be an incomplete/stale IndexedDB cache that doesn't have
+  // it yet, and the fresh one arrives moments later via the background refetch.
+  const pendingHashPageId = useRef<string | null>(
+    (() => {
+      const m = window.location.hash.match(/^#page=(.+)$/)
+      return m ? decodeURIComponent(m[1]) : null
+    })(),
+  )
+  // True while the current selectedPage is just our own placeholder (the root index), not
+  // something the user actually clicked — safe to replace once the real hash target shows up.
+  const autoSelected = useRef(false)
 
   // Landing view: restore a shared "#page=<id>" deep link if present, otherwise show the root
-  // section's index.md automatically (same as visiting "/" would).
+  // section's index.md automatically (same as visiting "/" would). Re-checked on every tree
+  // update (not just once) until the hash target is actually found, since the first tree paint
+  // can come from an incomplete/stale cache — see the refs above.
   useEffect(() => {
-    if (!tree || !pathIndex || selectedPage) return
-    const hashMatch = window.location.hash.match(/^#page=(.+)$/)
-    const linkedPage = hashMatch
-      ? [...pathIndex.pages.values()].find((p) => p.id === decodeURIComponent(hashMatch[1]))
-      : undefined
-    setSelectedPage(linkedPage ?? tree.indexPage ?? null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tree, pathIndex])
+    if (!tree || !pathIndex) return
+    // Any of these means the user already navigated somewhere on their own — stop auto-restoring.
+    if (selectedNotebook || selectedPdf || selectedGoogleFile || viewedSection) return
+    if (selectedPage && !autoSelected.current) return
+
+    if (pendingHashPageId.current) {
+      const linkedPage = [...pathIndex.pages.values()].find((p) => p.id === pendingHashPageId.current)
+      if (linkedPage) {
+        setSelectedPage(linkedPage)
+        autoSelected.current = false
+        pendingHashPageId.current = null
+        return
+      }
+    }
+    if (!selectedPage || autoSelected.current) {
+      setSelectedPage(tree.indexPage ?? null)
+      autoSelected.current = true
+    }
+  }, [tree, pathIndex, selectedPage, selectedNotebook, selectedPdf, selectedGoogleFile, viewedSection])
 
   // Keep the URL's hash pointing at whatever page is open, so "Compartir" has a real link to copy.
   useEffect(() => {
@@ -239,6 +264,7 @@ function WikiExplorer({
   }, [tree])
 
   function selectPage(page: WikiPage | null) {
+    autoSelected.current = false
     setSelectedPage(page)
     setSelectedNotebook(null)
     setSelectedPdf(null)

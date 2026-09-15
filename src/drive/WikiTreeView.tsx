@@ -56,10 +56,16 @@ export function WikiTreeView({
     section.sections.length > 0
   const [open, setOpen] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [rowHovered, setRowHovered] = useState(false)
+  const actionsVisible = rowHovered || menuOpen
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="group flex items-center gap-0.5">
+      <div
+        className="flex items-center gap-0.5"
+        onMouseEnter={() => setRowHovered(true)}
+        onMouseLeave={() => setRowHovered(false)}
+      >
         {hasChildren ? (
           <CollapsibleTrigger asChild>
             <Button variant="ghost" size="icon-xs" className="shrink-0" aria-label={open ? 'Colapsar' : 'Expandir'}>
@@ -97,8 +103,8 @@ export function WikiTreeView({
               variant="ghost"
               size="icon-xs"
               className={cn(
-                'shrink-0 opacity-30 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:opacity-100',
-                menuOpen && 'opacity-100',
+                'shrink-0 opacity-0 transition-opacity focus-visible:opacity-100',
+                actionsVisible && 'opacity-100',
               )}
               aria-label={`Agregar contenido en ${section.name}`}
             >
@@ -118,7 +124,10 @@ export function WikiTreeView({
           <Button
             variant="ghost"
             size="icon-xs"
-            className="text-destructive hover:text-destructive shrink-0 opacity-30 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:opacity-100"
+            className={cn(
+              'text-destructive hover:text-destructive shrink-0 opacity-0 transition-opacity focus-visible:opacity-100',
+              actionsVisible && 'opacity-100',
+            )}
             aria-label={`Eliminar sección ${section.name}`}
             onClick={() => onDeleteSection(section)}
           >

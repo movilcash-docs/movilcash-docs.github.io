@@ -30,11 +30,13 @@ import { findSectionForGoogleFile, findSectionForNotebook, findSectionForPage, f
 import { flattenPages } from './drive/flattenPages'
 import { MarkdownView } from './drive/MarkdownView'
 import { NotebookView } from './drive/NotebookView'
+import { PageByline } from './drive/PageByline'
 import { PageEditor } from './drive/PageEditor'
 import { PdfView } from './drive/PdfView'
 import { pickFolder } from './drive/pickFolder'
 import { useFavorites } from './drive/useFavorites'
 import { useNotebookContent } from './drive/useNotebookContent'
+import { usePageAuthorship } from './drive/usePageAuthorship'
 import { useRootFolder } from './drive/RootFolderContext'
 import { usePageContent } from './drive/usePageContent'
 import { useWikiTree } from './drive/useWikiTree'
@@ -148,6 +150,7 @@ function WikiExplorer({
     error: pageError,
     errorReason: pageErrorReason,
   } = usePageContent(accessToken, selectedPage)
+  const pageAuthorship = usePageAuthorship(accessToken, selectedPage?.id ?? null)
   const {
     notebook,
     isLoading: isNotebookLoading,
@@ -589,6 +592,7 @@ function WikiExplorer({
                   </DropdownMenu>
                 </div>
               </div>
+              <PageByline authorship={pageAuthorship} />
               <MarkdownView
                 content={content}
                 assets={currentSection?.section.assets ?? []}

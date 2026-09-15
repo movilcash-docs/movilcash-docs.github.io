@@ -23,10 +23,10 @@ const TOKEN_LIFETIME_SECONDS = 3600
 // Cleared a bit before the real expiry so a stale token isn't used for a request that's mid-flight.
 const EXPIRY_MARGIN_MS = 60_000
 
-// Access tokens are kept in sessionStorage (see tokenStorage.ts) so a plain page refresh reuses
-// the existing one instead of re-running Google's auth flow — that flow can pop a window even for
-// a "silent" attempt (more likely for an unverified/"Testing" app requesting the full Drive scope,
-// which is our case), so avoiding it on every reload is worth the persistence.
+// Access tokens are kept in localStorage (see tokenStorage.ts) so the session survives a page
+// refresh *and* closing the browser — not just re-running Google's auth flow, which can pop a
+// window even for a "silent" attempt (more likely for an unverified/"Testing" app requesting the
+// full Drive scope, which is our case) — for as long as the token itself is still valid.
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(INITIAL_STATE)
   const expiryTimer = useRef<number | undefined>(undefined)

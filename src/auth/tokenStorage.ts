@@ -10,14 +10,15 @@ interface StoredSession {
 }
 
 /**
- * Access token + user profile, kept in sessionStorage (cleared when the tab/browser closes —
- * unlike localStorage, never survives to a later day). This is what lets a plain page refresh
- * skip Google's auth flow entirely instead of re-running it (and possibly popping a window)
- * every time, as long as the token is still valid.
+ * Access token + user profile, kept in localStorage so the session survives closing the tab or
+ * the whole browser — not just a plain refresh — for as long as the token itself is still valid
+ * (checked below via `expiresAt`; Google tokens are short-lived, ~1h, regardless of where they're
+ * stored). This is what lets reopening the app skip Google's auth flow entirely instead of
+ * re-running it (and possibly popping a window) every time.
  */
 export function readStoredSession(): StoredSession | null {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as StoredSession
     if (typeof parsed.expiresAt !== 'number' || parsed.expiresAt <= Date.now()) return null
@@ -29,7 +30,7 @@ export function readStoredSession(): StoredSession | null {
 
 export function writeStoredSession(session: StoredSession): void {
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
   } catch {
     // Storage unavailable (private mode, quota, etc.) — non-fatal, just skip persisting.
   }
@@ -37,7 +38,7 @@ export function writeStoredSession(session: StoredSession): void {
 
 export function clearStoredSession(): void {
   try {
-    sessionStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(STORAGE_KEY)
   } catch {
     // ignore
   }

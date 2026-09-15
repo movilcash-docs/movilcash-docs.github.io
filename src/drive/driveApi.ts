@@ -157,3 +157,20 @@ export async function getRevisionText(fileId: string, revisionId: string, access
   const response = await driveFetch(`${FILES_ENDPOINT}/${fileId}/revisions/${revisionId}?alt=media`, accessToken)
   return response.text()
 }
+
+export interface DriveFileAuthorship {
+  createdTime: string
+  modifiedTime: string
+  /** Drive files always have at least one owner; this is normally whoever created the file. */
+  owners: { displayName?: string; emailAddress?: string }[]
+  lastModifyingUser?: { displayName?: string; emailAddress?: string }
+}
+
+/** Who created a file and who last edited it, for the "Creado por / Última edición" byline. */
+export async function getFileAuthorship(fileId: string, accessToken: string): Promise<DriveFileAuthorship> {
+  const response = await driveFetch(
+    `${FILES_ENDPOINT}/${fileId}?fields=createdTime,modifiedTime,owners(displayName,emailAddress),lastModifyingUser(displayName,emailAddress)`,
+    accessToken,
+  )
+  return response.json()
+}

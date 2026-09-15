@@ -62,6 +62,10 @@ export interface WikiSection {
 
 const INDEX_FILE_NAME = 'index.md'
 
+function sortByName<T>(items: T[], key: (item: T) => string): T[] {
+  return [...items].sort((a, b) => key(a).localeCompare(key(b), undefined, { numeric: true, sensitivity: 'base' }))
+}
+
 function toPage(file: DriveFile): WikiPage {
   return {
     type: 'page',
@@ -89,7 +93,10 @@ export async function buildWikiTree(
 ): Promise<WikiSection> {
   const children = await listChildren(folderId, accessToken)
 
-  const folders = children.filter((f) => f.mimeType === FOLDER_MIME_TYPE)
+  const folders = sortByName(
+    children.filter((f) => f.mimeType === FOLDER_MIME_TYPE),
+    (f) => f.name,
+  )
   const mdFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && /\.md$/i.test(f.name))
   const notebookFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && /\.ipynb$/i.test(f.name))
   const pdfFiles = children.filter((f) => f.mimeType === PDF_MIME_TYPE)
@@ -99,13 +106,19 @@ export async function buildWikiTree(
   const otherFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && !classified.has(f))
 
   const indexFile = mdFiles.find((f) => f.name.toLowerCase() === INDEX_FILE_NAME)
-  const pages = mdFiles.filter((f) => f !== indexFile).map(toPage)
-  const notebooks = notebookFiles.map(toNotebook)
-  const pdfs = pdfFiles.map((f) => ({ type: 'pdf' as const, id: f.id, name: f.name, modifiedTime: f.modifiedTime }))
-  const googleFiles = [
-    ...googleDocFiles.map((f) => ({ type: 'gdoc' as const, id: f.id, name: f.name, modifiedTime: f.modifiedTime })),
-    ...googleSheetFiles.map((f) => ({ type: 'gsheet' as const, id: f.id, name: f.name, modifiedTime: f.modifiedTime })),
-  ]
+  const pages = sortByName(mdFiles.filter((f) => f !== indexFile).map(toPage), (p) => p.slug)
+  const notebooks = sortByName(notebookFiles.map(toNotebook), (n) => n.slug)
+  const pdfs = sortByName(
+    pdfFiles.map((f) => ({ type: 'pdf' as const, id: f.id, name: f.name, modifiedTime: f.modifiedTime })),
+    (p) => p.name,
+  )
+  const googleFiles = sortByName(
+    [
+      ...googleDocFiles.map((f) => ({ type: 'gdoc' as const, id: f.id, name: f.name, modifiedTime: f.modifiedTime })),
+      ...googleSheetFiles.map((f) => ({ type: 'gsheet' as const, id: f.id, name: f.name, modifiedTime: f.modifiedTime })),
+    ],
+    (f) => f.name,
+  )
 
   const sections = await Promise.all(
     folders.map((folder) => buildWikiTree(folder.id, folder.name, accessToken)),

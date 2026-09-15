@@ -11,6 +11,7 @@ interface PromptDialogProps {
   label: string
   placeholder?: string
   confirmLabel?: string
+  defaultValue?: string
   onConfirm: (value: string) => void
 }
 
@@ -21,12 +22,14 @@ export function PromptDialog({
   label,
   placeholder,
   confirmLabel = 'Crear',
+  defaultValue = '',
   onConfirm,
 }: PromptDialogProps) {
   const [value, setValue] = useState('')
 
   useEffect(() => {
-    if (open) setValue('')
+    if (open) setValue(defaultValue)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   function handleSubmit(e: FormEvent) {

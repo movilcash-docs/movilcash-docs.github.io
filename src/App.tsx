@@ -1,3 +1,4 @@
+import { MoreHorizontal, Share2, Star } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import { setPageContent } from './cache/pageCache'
@@ -14,12 +15,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from 'cn'
 import { createFile, createFolder, trashFile, updateFileContent } from './drive/driveApi'
 import { findSectionForPage } from './drive/findSection'
+import { flattenPages } from './drive/flattenPages'
 import { MarkdownView } from './drive/MarkdownView'
 import { PageEditor } from './drive/PageEditor'
 import { pickFolder } from './drive/pickFolder'
+import { useFavorites } from './drive/useFavorites'
 import { useRootFolder } from './drive/RootFolderContext'
 import { usePageContent } from './drive/usePageContent'
 import { useWikiTree } from './drive/useWikiTree'
@@ -114,6 +125,9 @@ function WikiExplorer({
   const [createSectionOpen, setCreateSectionOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<WikiPage | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [duplicateOpen, setDuplicateOpen] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
+  const { favoriteIds, isFavorite, toggleFavorite } = useFavorites(rootFolderId)
   const {
     content,
     isLoading: isPageLoading,
@@ -126,11 +140,24 @@ function WikiExplorer({
   )
   const pathIndex = useMemo(() => (tree ? buildPathIndex(tree) : null), [tree])
 
-  // Landing view: show the root section's index.md automatically, same as visiting "/" would.
+  // Landing view: restore a shared "#page=<id>" deep link if present, otherwise show the root
+  // section's index.md automatically (same as visiting "/" would).
   useEffect(() => {
-    if (tree?.indexPage && !selectedPage) setSelectedPage(tree.indexPage)
+    if (!tree || !pathIndex || selectedPage) return
+    const hashMatch = window.location.hash.match(/^#page=(.+)$/)
+    const linkedPage = hashMatch
+      ? [...pathIndex.pages.values()].find((p) => p.id === decodeURIComponent(hashMatch[1]))
+      : undefined
+    setSelectedPage(linkedPage ?? tree.indexPage ?? null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tree])
+  }, [tree, pathIndex])
+
+  // Keep the URL's hash pointing at whatever page is open, so "Compartir" has a real link to copy.
+  useEffect(() => {
+    if (!selectedPage) return
+    const newHash = `#page=${encodeURIComponent(selectedPage.id)}`
+    if (window.location.hash !== newHash) window.history.replaceState(null, '', newHash)
+  }, [selectedPage])
 
   // "Where do new pages/sections go" follows whatever section the user is currently looking at.
   useEffect(() => {
@@ -173,6 +200,37 @@ function WikiExplorer({
       setIsEditing(true)
     } catch (err) {
       window.alert((err as Error).message)
+    }
+  }
+
+  async function handleDuplicatePage(name: string) {
+    if (!accessToken || !selectedPage || content === null) return
+    const fileName = name.toLowerCase().endsWith('.md') ? name : `${name}.md`
+    const targetSectionId = currentSection?.section.id ?? activeSectionId
+    try {
+      const created = await createFile(targetSectionId, fileName, content, 'text/markdown', accessToken)
+      refresh()
+      selectPage({
+        type: 'page',
+        id: created.id,
+        name: created.name,
+        slug: created.name.replace(/\.md$/i, ''),
+        modifiedTime: created.modifiedTime,
+      })
+    } catch (err) {
+      window.alert((err as Error).message)
+    }
+  }
+
+  async function handleShare() {
+    if (!selectedPage) return
+    const url = `${window.location.origin}${window.location.pathname}#page=${encodeURIComponent(selectedPage.id)}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 2000)
+    } catch {
+      window.prompt('Copiá el link:', url)
     }
   }
 
@@ -256,6 +314,30 @@ function WikiExplorer({
             </div>
           </div>
           <ScrollArea className="h-[calc(100svh-9rem)]">
+            {favoriteIds.size > 0 && (
+              <div className="mb-4">
+                <div className="text-muted-foreground mb-1 px-1.5 text-xs font-semibold uppercase">Favoritos</div>
+                <div className="flex flex-col gap-0.5">
+                  {flattenPages(tree)
+                    .filter((fp) => favoriteIds.has(fp.page.id))
+                    .map((fp) => (
+                      <Button
+                        key={fp.page.id}
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          'justify-start gap-1.5 truncate',
+                          fp.page.id === selectedPage?.id && 'bg-muted font-semibold',
+                        )}
+                        onClick={() => selectPage(fp.page)}
+                      >
+                        <Star className="size-3.5 shrink-0 fill-current text-yellow-500" />
+                        {fp.page.slug}
+                      </Button>
+                    ))}
+                </div>
+              </div>
+            )}
             <WikiTreeView
               section={tree}
               selectedPageId={selectedPage?.id ?? null}
@@ -282,19 +364,44 @@ function WikiExplorer({
           )}
           {selectedPage && content !== null && accessToken && pathIndex && !isEditing && (
             <article className="prose dark:prose-invert max-w-3xl">
-              <div className="mb-4 flex justify-end gap-2 print:hidden">
-                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-                  Editar
-                </Button>
-                <Button variant="destructive" size="sm" onClick={() => setDeleteTarget(selectedPage)}>
-                  Eliminar
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}>
-                  Historial
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => window.print()}>
-                  Descargar PDF
-                </Button>
+              <div className="mb-6 flex items-center justify-between gap-4 print:hidden">
+                <div className="text-muted-foreground min-w-0 truncate text-sm">
+                  {rootFolderName}
+                  {currentSection && currentSection.path.length > 0 && ` / ${currentSection.path.join(' / ')}`}
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={isFavorite(selectedPage.id) ? 'Quitar de favoritos' : 'Marcar como favorito'}
+                    onClick={() => toggleFavorite(selectedPage.id)}
+                  >
+                    <Star className={cn('size-4', isFavorite(selectedPage.id) && 'fill-yellow-500 text-yellow-500')} />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleShare}>
+                    <Share2 />
+                    {shareCopied ? 'Copiado' : 'Compartir'}
+                  </Button>
+                  <Button size="sm" onClick={() => setIsEditing(true)}>
+                    Editar
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="icon" aria-label="Más opciones">
+                        <MoreHorizontal />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onSelect={() => setHistoryOpen(true)}>Historial</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setDuplicateOpen(true)}>Hacer una copia</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => window.print()}>Descargar PDF</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(selectedPage)}>
+                        Eliminar
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
               <MarkdownView
                 content={content}
@@ -340,6 +447,17 @@ function WikiExplorer({
         placeholder="ej. guia-de-despliegue"
         onConfirm={handleCreatePage}
       />
+      {selectedPage && (
+        <PromptDialog
+          open={duplicateOpen}
+          onOpenChange={setDuplicateOpen}
+          title="Hacer una copia"
+          label="Nombre de la copia (sin .md)"
+          defaultValue={`${selectedPage.slug} copia`}
+          confirmLabel="Duplicar"
+          onConfirm={handleDuplicatePage}
+        />
+      )}
       <PromptDialog
         open={createSectionOpen}
         onOpenChange={setCreateSectionOpen}

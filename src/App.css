@@ -33,3 +33,92 @@
 .status-screen .error {
   color: #d93025;
 }
+
+.wiki-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.wiki-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(128, 128, 128, 0.3);
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.wiki-sidebar-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.wiki-sidebar-header .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.wiki-sidebar-header button {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.wiki-tree,
+.wiki-tree ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 0;
+}
+
+.wiki-tree button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.3rem 0.5rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.wiki-tree button:hover {
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.wiki-tree button.selected {
+  background: rgba(26, 115, 232, 0.2);
+  font-weight: 600;
+}
+
+.wiki-tree .section-label {
+  display: block;
+  padding: 0.3rem 0.5rem;
+  opacity: 0.7;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+
+.wiki-content {
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+}
+
+.wiki-content .content-note {
+  opacity: 0.6;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.raw-markdown {
+  white-space: pre-wrap;
+  font-family: inherit;
+}

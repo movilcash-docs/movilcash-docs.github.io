@@ -1,7 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import { pickFolder } from './drive/pickFolder'
 import { useRootFolder } from './drive/RootFolderContext'
+import { usePageContent } from './drive/usePageContent'
+import { useWikiTree } from './drive/useWikiTree'
+import { WikiTreeView } from './drive/WikiTreeView'
+import type { WikiPage } from './drive/wikiTree'
 import './App.css'
 
 function App() {
@@ -58,18 +62,103 @@ function App() {
   }
 
   return (
-    <main className="status-screen">
-      <h1>{rootFolder.name}</h1>
-      <p>Sesión iniciada. Próximo paso: leer la estructura de esta carpeta desde Drive (Fase 2).</p>
-      <div className="actions">
-        <button type="button" onClick={clearRootFolder}>
-          Cambiar carpeta
-        </button>
-        <button type="button" className="secondary" onClick={signOut}>
-          Cerrar sesión
-        </button>
-      </div>
-    </main>
+    <WikiExplorer
+      accessToken={accessToken}
+      rootFolderId={rootFolder.id}
+      rootFolderName={rootFolder.name}
+      onChangeFolder={clearRootFolder}
+      onSignOut={signOut}
+    />
+  )
+}
+
+interface WikiExplorerProps {
+  accessToken: string | null
+  rootFolderId: string
+  rootFolderName: string
+  onChangeFolder: () => void
+  onSignOut: () => void
+}
+
+function WikiExplorer({ accessToken, rootFolderId, rootFolderName, onChangeFolder, onSignOut }: WikiExplorerProps) {
+  const { tree, isLoading, error, refresh } = useWikiTree(accessToken, rootFolderId, rootFolderName)
+  const [selectedPage, setSelectedPage] = useState<WikiPage | null>(null)
+  const { content, isLoading: isPageLoading, error: pageError } = usePageContent(
+    accessToken,
+    selectedPage?.id ?? null,
+  )
+
+  // Landing view: show the root section's index.md automatically, same as visiting "/" would.
+  useEffect(() => {
+    if (tree?.indexPage && !selectedPage) setSelectedPage(tree.indexPage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tree])
+
+  if (isLoading) {
+    return (
+      <main className="status-screen">
+        <p>Leyendo la estructura de "{rootFolderName}"…</p>
+      </main>
+    )
+  }
+
+  if (error) {
+    return (
+      <main className="status-screen">
+        <p className="error">Error leyendo Drive: {error}</p>
+        <div className="actions">
+          <button type="button" onClick={refresh}>
+            Reintentar
+          </button>
+          <button type="button" className="secondary" onClick={onChangeFolder}>
+            Cambiar carpeta
+          </button>
+        </div>
+      </main>
+    )
+  }
+
+  if (!tree) return null
+
+  return (
+    <div className="wiki-layout">
+      <aside className="wiki-sidebar">
+        <div className="wiki-sidebar-header">
+          <strong>{rootFolderName}</strong>
+          <div className="actions">
+            <button type="button" onClick={refresh}>
+              Refrescar
+            </button>
+            <button type="button" onClick={onChangeFolder}>
+              Cambiar carpeta
+            </button>
+            <button type="button" className="secondary" onClick={onSignOut}>
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
+        <WikiTreeView section={tree} selectedPageId={selectedPage?.id ?? null} onSelectPage={setSelectedPage} />
+      </aside>
+      <section className="wiki-content">
+        {!selectedPage && !tree.indexPage && (
+          <p>
+            No hay <code>index.md</code> en la raíz de "{rootFolderName}" — creá uno en Drive para que sea la
+            portada de la wiki, o elegí una página del árbol de la izquierda.
+          </p>
+        )}
+        {!selectedPage && tree.indexPage && <p>Elegí una página del árbol de la izquierda.</p>}
+        {selectedPage && isPageLoading && <p>Cargando página…</p>}
+        {selectedPage && pageError && <p className="error">Error: {pageError}</p>}
+        {selectedPage && content !== null && (
+          <>
+            <p className="content-note">
+              Vista provisoria (texto crudo) — el render de Markdown llega en la próxima fase.
+            </p>
+            <pre className="raw-markdown">{content}</pre>
+          </>
+        )}
+      </section>
+    </div>
   )
 }
 

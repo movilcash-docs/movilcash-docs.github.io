@@ -363,7 +363,7 @@ function WikiExplorer({
             </p>
           )}
           {selectedPage && content !== null && accessToken && pathIndex && !isEditing && (
-            <article className="prose dark:prose-invert max-w-3xl">
+            <article className="prose dark:prose-invert mx-auto max-w-3xl">
               <div className="mb-6 flex items-center justify-between gap-4 print:hidden">
                 <div className="text-muted-foreground min-w-0 truncate text-sm">
                   {rootFolderName}

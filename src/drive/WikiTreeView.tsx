@@ -63,7 +63,7 @@ export function WikiTreeView({
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <div
-        className="flex items-center gap-0.5"
+        className="flex min-w-0 items-center gap-0.5"
         onPointerEnter={() => setRowHovered(true)}
         onPointerLeave={() => setRowHovered(false)}
       >
@@ -81,7 +81,7 @@ export function WikiTreeView({
             variant="ghost"
             size="sm"
             className={cn(
-              'flex-1 justify-start truncate',
+              'min-w-0 flex-1 justify-start truncate',
               section.indexPage.id === selectedPageId && 'bg-muted font-semibold',
             )}
             onClick={() => onSelectPage(section.indexPage!)}
@@ -92,7 +92,7 @@ export function WikiTreeView({
           <Button
             variant="ghost"
             size="sm"
-            className="text-muted-foreground flex-1 justify-start truncate text-xs"
+            className="text-muted-foreground min-w-0 flex-1 justify-start truncate text-xs"
             onClick={() => onSelectSection(section)}
           >
             {section.name}
@@ -138,13 +138,16 @@ export function WikiTreeView({
       </div>
       {hasChildren && (
         <CollapsibleContent>
-          <div className={cn('mt-0.5 flex flex-col gap-0.5', depth === 0 ? 'pl-3' : 'pl-3')}>
+          <div className={cn('mt-0.5 flex min-w-0 flex-col gap-0.5', depth === 0 ? 'pl-3' : 'pl-3')}>
             {section.pages.map((page) => (
               <Button
                 key={page.id}
                 variant="ghost"
                 size="sm"
-                className={cn('justify-start truncate', page.id === selectedPageId && 'bg-muted font-semibold')}
+                className={cn(
+                  'min-w-0 justify-start truncate',
+                  page.id === selectedPageId && 'bg-muted font-semibold',
+                )}
                 onClick={() => onSelectPage(page)}
               >
                 {page.slug}
@@ -156,7 +159,7 @@ export function WikiTreeView({
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  'justify-start gap-1.5 truncate',
+                  'min-w-0 justify-start gap-1.5 truncate',
                   notebook.id === selectedNotebookId && 'bg-muted font-semibold',
                 )}
                 onClick={() => onSelectNotebook(notebook)}
@@ -170,7 +173,10 @@ export function WikiTreeView({
                 key={pdf.id}
                 variant="ghost"
                 size="sm"
-                className={cn('justify-start gap-1.5 truncate', pdf.id === selectedPdfId && 'bg-muted font-semibold')}
+                className={cn(
+                  'min-w-0 justify-start gap-1.5 truncate',
+                  pdf.id === selectedPdfId && 'bg-muted font-semibold',
+                )}
                 onClick={() => onSelectPdf(pdf)}
               >
                 <FileText className="size-3.5 shrink-0 text-red-500" />
@@ -183,7 +189,7 @@ export function WikiTreeView({
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  'justify-start gap-1.5 truncate',
+                  'min-w-0 justify-start gap-1.5 truncate',
                   file.id === selectedGoogleFileId && 'bg-muted font-semibold',
                 )}
                 onClick={() => onSelectGoogleFile(file)}

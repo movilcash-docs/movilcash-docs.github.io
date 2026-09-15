@@ -1,3 +1,4 @@
+import { isValidElement, lazy, Suspense, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
@@ -6,6 +7,16 @@ import { isAbsoluteUrl } from './urlUtils'
 import { resolveRelativePath, type WikiPathIndex } from './wikiPathIndex'
 import type { WikiAsset, WikiPage } from './wikiTree'
 import { WikiImage } from './WikiImage'
+
+const MermaidDiagram = lazy(() => import('./MermaidDiagram').then((m) => ({ default: m.MermaidDiagram })))
+
+/** Extracts the raw text of a ```mermaid fenced code block, or null if `children` isn't one. */
+function getMermaidCode(children: ReactNode): string | null {
+  const codeElement = Array.isArray(children) ? children[0] : children
+  if (!isValidElement<{ className?: string; children?: ReactNode }>(codeElement)) return null
+  if (!codeElement.props.className?.includes('language-mermaid')) return null
+  return String(codeElement.props.children ?? '').replace(/\n$/, '')
+}
 
 interface MarkdownViewProps {
   content: string
@@ -32,6 +43,17 @@ export function MarkdownView({ content, assets, basePath, pathIndex, accessToken
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeSanitize]}
       components={{
+        pre: ({ children, ...props }) => {
+          const mermaidCode = getMermaidCode(children)
+          if (mermaidCode !== null) {
+            return (
+              <Suspense fallback={<p className="text-muted-foreground text-sm">Cargando diagrama…</p>}>
+                <MermaidDiagram code={mermaidCode} />
+              </Suspense>
+            )
+          }
+          return <pre {...props}>{children}</pre>
+        },
         img: ({ src, alt }) => (
           <WikiImage src={typeof src === 'string' ? src : undefined} alt={alt} assets={assets} accessToken={accessToken} />
         ),

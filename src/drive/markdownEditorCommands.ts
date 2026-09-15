@@ -116,6 +116,14 @@ export function insertTable(sel: EditorSelection): EditorSelection {
   return { value: value2, selectionStart: start + table.length, selectionEnd: start + table.length }
 }
 
+/** Inserts a starter Mermaid flowchart at the cursor. */
+export function insertMermaidDiagram(sel: EditorSelection): EditorSelection {
+  const { value, selectionStart: start } = sel
+  const diagram = '```mermaid\nflowchart TD\n    A[Inicio] --> B{¿Condición?}\n    B -->|Sí| C[Paso]\n    B -->|No| D[Fin]\n```\n'
+  const value2 = value.slice(0, start) + diagram + value.slice(start)
+  return { value: value2, selectionStart: start + diagram.length, selectionEnd: start + diagram.length }
+}
+
 /** Inserts a horizontal rule at the cursor, on its own blank-line-separated block. */
 export function insertHorizontalRule(sel: EditorSelection): EditorSelection {
   const { value, selectionStart: start } = sel

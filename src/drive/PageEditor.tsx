@@ -14,6 +14,7 @@ import {
   Quote,
   Strikethrough,
   Table as TableIcon,
+  Workflow,
 } from 'lucide-react'
 import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,7 @@ import {
   insertCodeBlock,
   insertHorizontalRule,
   insertLink,
+  insertMermaidDiagram,
   insertTable,
   outdentLines,
   setHeadingLevel,
@@ -270,6 +272,9 @@ function MarkdownToolbar({ onCommand, isUploading, onUploadImage }: MarkdownTool
       </ToolbarButton>
       <ToolbarButton label="Línea horizontal" onClick={() => onCommand(insertHorizontalRule)}>
         <Minus />
+      </ToolbarButton>
+      <ToolbarButton label="Diagrama Mermaid" onClick={() => onCommand(insertMermaidDiagram)}>
+        <Workflow />
       </ToolbarButton>
 
       <Separator orientation="vertical" className="mx-1 h-5" />

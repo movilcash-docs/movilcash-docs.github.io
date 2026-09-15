@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import { setPageContent } from './cache/pageCache'
 import { TopBar } from './components/TopBar'
+import { ConfirmDeleteDialog } from './components/ConfirmDeleteDialog'
 import { PromptDialog } from './components/PromptDialog'
 import { Button } from '@/components/ui/button'
 import {
@@ -124,6 +125,7 @@ function WikiExplorer({
   const [createPageOpen, setCreatePageOpen] = useState(false)
   const [createSectionOpen, setCreateSectionOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<WikiPage | null>(null)
+  const [sectionToDelete, setSectionToDelete] = useState<WikiSection | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [duplicateOpen, setDuplicateOpen] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
@@ -256,6 +258,18 @@ function WikiExplorer({
     }
   }
 
+  async function handleConfirmDeleteSection() {
+    if (!accessToken || !sectionToDelete) return
+    try {
+      await trashFile(sectionToDelete.id, accessToken)
+      // The deleted section may still contain the page currently open — bail out of it either way.
+      selectPage(null)
+      refresh()
+    } catch (err) {
+      window.alert((err as Error).message)
+    }
+  }
+
   const topBar = (
     <TopBar
       tree={tree}
@@ -343,6 +357,7 @@ function WikiExplorer({
                 setActiveSectionId(s.id)
                 setCreateSectionOpen(true)
               }}
+              onDeleteSection={setSectionToDelete}
             />
           </ScrollArea>
         </aside>
@@ -465,6 +480,13 @@ function WikiExplorer({
         label="Nombre de la sección (carpeta)"
         placeholder="ej. infraestructura"
         onConfirm={handleCreateSection}
+      />
+      <ConfirmDeleteDialog
+        open={sectionToDelete !== null}
+        onOpenChange={(open) => !open && setSectionToDelete(null)}
+        title={`¿Eliminar la sección "${sectionToDelete?.name}"?`}
+        description="Se mueve a la papelera de Google Drive junto con todo su contenido (páginas, imágenes y subsecciones). Es recuperable desde ahí, pero no dentro de la wiki."
+        onConfirm={handleConfirmDeleteSection}
       />
       <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>

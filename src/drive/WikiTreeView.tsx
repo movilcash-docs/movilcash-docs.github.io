@@ -1,4 +1,4 @@
-import { ChevronRight, FilePlus, FolderPlus, Plus } from 'lucide-react'
+import { ChevronRight, FilePlus, FolderPlus, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from 'cn'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,7 @@ interface Props {
   onSelectSection: (section: WikiSection) => void
   onCreatePage: (section: WikiSection) => void
   onCreateSection: (section: WikiSection) => void
+  onDeleteSection: (section: WikiSection) => void
   depth?: number
 }
 
@@ -28,6 +29,7 @@ export function WikiTreeView({
   onSelectSection,
   onCreatePage,
   onCreateSection,
+  onDeleteSection,
   depth = 0,
 }: Props) {
   const hasChildren = section.pages.length > 0 || section.sections.length > 0
@@ -88,6 +90,17 @@ export function WikiTreeView({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        {depth > 0 && (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="text-destructive hover:text-destructive shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+            aria-label={`Eliminar sección ${section.name}`}
+            onClick={() => onDeleteSection(section)}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        )}
       </div>
       {hasChildren && (
         <CollapsibleContent>
@@ -112,6 +125,7 @@ export function WikiTreeView({
                 onSelectSection={onSelectSection}
                 onCreatePage={onCreatePage}
                 onCreateSection={onCreateSection}
+                onDeleteSection={onDeleteSection}
                 depth={depth + 1}
               />
             ))}

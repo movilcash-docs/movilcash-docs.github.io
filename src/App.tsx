@@ -304,16 +304,8 @@ function WikiExplorer({
         <aside className="w-70 shrink-0 border-r p-4 print:hidden">
           <div className="mb-4">
             <strong>{rootFolderName}</strong>
-            <div className="mt-2 flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1" onClick={() => setCreatePageOpen(true)}>
-                + Página
-              </Button>
-              <Button variant="outline" size="sm" className="flex-1" onClick={() => setCreateSectionOpen(true)}>
-                + Sección
-              </Button>
-            </div>
           </div>
-          <ScrollArea className="h-[calc(100svh-9rem)]">
+          <ScrollArea className="h-[calc(100svh-7rem)]">
             {favoriteIds.size > 0 && (
               <div className="mb-4">
                 <div className="text-muted-foreground mb-1 px-1.5 text-xs font-semibold uppercase">Favoritos</div>
@@ -343,6 +335,14 @@ function WikiExplorer({
               selectedPageId={selectedPage?.id ?? null}
               onSelectPage={selectPage}
               onSelectSection={selectSection}
+              onCreatePage={(s) => {
+                setActiveSectionId(s.id)
+                setCreatePageOpen(true)
+              }}
+              onCreateSection={(s) => {
+                setActiveSectionId(s.id)
+                setCreateSectionOpen(true)
+              }}
             />
           </ScrollArea>
         </aside>

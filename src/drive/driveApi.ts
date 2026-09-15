@@ -10,11 +10,14 @@ export interface DriveFile {
 
 export class DriveApiError extends Error {
   status: number
+  /** Drive's machine-readable error reason (e.g. "fileNotDownloadable"), when available. */
+  reason?: string
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, reason?: string) {
     super(message)
     this.name = 'DriveApiError'
     this.status = status
+    this.reason = reason
   }
 }
 
@@ -24,8 +27,16 @@ async function driveFetch(url: string, accessToken: string, init?: RequestInit):
     headers: { ...init?.headers, Authorization: `Bearer ${accessToken}` },
   })
   if (!response.ok) {
-    const body = await response.text().catch(() => '')
-    throw new DriveApiError(`Drive API error ${response.status}: ${body}`, response.status)
+    let message = `Drive API error ${response.status}`
+    let reason: string | undefined
+    try {
+      const body = (await response.json()) as { error?: { message?: string; errors?: { reason?: string }[] } }
+      if (body.error?.message) message = body.error.message
+      reason = body.error?.errors?.[0]?.reason
+    } catch {
+      // Body wasn't JSON — keep the generic message.
+    }
+    throw new DriveApiError(message, response.status, reason)
   }
   return response
 }

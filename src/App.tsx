@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import { TopBar } from './components/TopBar'
+import { findSectionForPage } from './drive/findSection'
+import { MarkdownView } from './drive/MarkdownView'
 import { pickFolder } from './drive/pickFolder'
 import { useRootFolder } from './drive/RootFolderContext'
 import { usePageContent } from './drive/usePageContent'
 import { useWikiTree } from './drive/useWikiTree'
+import { buildPathIndex } from './drive/wikiPathIndex'
 import { WikiTreeView } from './drive/WikiTreeView'
 import type { WikiPage } from './drive/wikiTree'
 import './App.css'
@@ -93,7 +96,17 @@ function WikiExplorer({
 }: WikiExplorerProps) {
   const { tree, isLoading, error, refresh } = useWikiTree(accessToken, rootFolderId, rootFolderName)
   const [selectedPage, setSelectedPage] = useState<WikiPage | null>(null)
-  const { content, isLoading: isPageLoading, error: pageError } = usePageContent(accessToken, selectedPage)
+  const {
+    content,
+    isLoading: isPageLoading,
+    error: pageError,
+    errorReason: pageErrorReason,
+  } = usePageContent(accessToken, selectedPage)
+  const currentSection = useMemo(
+    () => (tree && selectedPage ? findSectionForPage(tree, selectedPage.id) : null),
+    [tree, selectedPage],
+  )
+  const pathIndex = useMemo(() => (tree ? buildPathIndex(tree) : null), [tree])
 
   // Landing view: show the root section's index.md automatically, same as visiting "/" would.
   useEffect(() => {
@@ -163,14 +176,29 @@ function WikiExplorer({
         )}
         {!selectedPage && tree.indexPage && <p>Elegí una página del árbol de la izquierda.</p>}
         {selectedPage && isPageLoading && <p>Cargando página…</p>}
-        {selectedPage && pageError && <p className="error">Error: {pageError}</p>}
-        {selectedPage && content !== null && (
-          <>
-            <p className="content-note">
-              Vista provisoria (texto crudo) — el render de Markdown llega en la próxima fase.
-            </p>
-            <pre className="raw-markdown">{content}</pre>
-          </>
+        {selectedPage && pageError && (
+          <p className="error">
+            {pageErrorReason === 'fileNotDownloadable'
+              ? `"${selectedPage.name}" es un Google Doc/Sheet nativo, no un archivo de texto. Para que la wiki lo pueda leer, subí o creá un archivo de texto plano (.md) en Drive en su lugar.`
+              : `Error: ${pageError}`}
+          </p>
+        )}
+        {selectedPage && content !== null && accessToken && pathIndex && (
+          <article className="page-article">
+            <div className="page-toolbar">
+              <button type="button" onClick={() => window.print()}>
+                Descargar PDF
+              </button>
+            </div>
+            <MarkdownView
+              content={content}
+              assets={currentSection?.section.assets ?? []}
+              basePath={currentSection?.path ?? []}
+              pathIndex={pathIndex}
+              accessToken={accessToken}
+              onSelectPage={setSelectedPage}
+            />
+          </article>
         )}
         </section>
       </div>

@@ -96,7 +96,10 @@ export function WikiTreeView({
             <Button
               variant="ghost"
               size="icon-xs"
-              className={cn('shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100', menuOpen && 'opacity-100')}
+              className={cn(
+                'shrink-0 opacity-30 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:opacity-100',
+                menuOpen && 'opacity-100',
+              )}
               aria-label={`Agregar contenido en ${section.name}`}
             >
               <Plus className="size-3.5" />
@@ -115,7 +118,7 @@ export function WikiTreeView({
           <Button
             variant="ghost"
             size="icon-xs"
-            className="text-destructive hover:text-destructive shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+            className="text-destructive hover:text-destructive shrink-0 opacity-30 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:opacity-100"
             aria-label={`Eliminar sección ${section.name}`}
             onClick={() => onDeleteSection(section)}
           >

@@ -2,6 +2,10 @@ import { FOLDER_MIME_TYPE, listChildren, type DriveFile } from './driveApi'
 
 const GOOGLE_DOC_MIME_TYPE = 'application/vnd.google-apps.document'
 const GOOGLE_SHEET_MIME_TYPE = 'application/vnd.google-apps.spreadsheet'
+// Word/Excel files stored as-is (not converted to Google's native format) — Drive's built-in
+// Office compatibility mode opens these with the same Docs/Sheets editor and URL scheme.
+const DOCX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 const PDF_MIME_TYPE = 'application/pdf'
 
 export interface WikiPage {
@@ -108,8 +112,8 @@ export async function buildWikiTree(
   const mdFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && /\.md$/i.test(f.name))
   const notebookFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && /\.ipynb$/i.test(f.name))
   const pdfFiles = children.filter((f) => f.mimeType === PDF_MIME_TYPE)
-  const googleDocFiles = children.filter((f) => f.mimeType === GOOGLE_DOC_MIME_TYPE)
-  const googleSheetFiles = children.filter((f) => f.mimeType === GOOGLE_SHEET_MIME_TYPE)
+  const googleDocFiles = children.filter((f) => f.mimeType === GOOGLE_DOC_MIME_TYPE || f.mimeType === DOCX_MIME_TYPE)
+  const googleSheetFiles = children.filter((f) => f.mimeType === GOOGLE_SHEET_MIME_TYPE || f.mimeType === XLSX_MIME_TYPE)
   const classified = new Set([...mdFiles, ...notebookFiles, ...pdfFiles, ...googleDocFiles, ...googleSheetFiles])
   const otherFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && !classified.has(f))
 

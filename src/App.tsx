@@ -83,10 +83,7 @@ interface WikiExplorerProps {
 function WikiExplorer({ accessToken, rootFolderId, rootFolderName, onChangeFolder, onSignOut }: WikiExplorerProps) {
   const { tree, isLoading, error, refresh } = useWikiTree(accessToken, rootFolderId, rootFolderName)
   const [selectedPage, setSelectedPage] = useState<WikiPage | null>(null)
-  const { content, isLoading: isPageLoading, error: pageError } = usePageContent(
-    accessToken,
-    selectedPage?.id ?? null,
-  )
+  const { content, isLoading: isPageLoading, error: pageError } = usePageContent(accessToken, selectedPage)
 
   // Landing view: show the root section's index.md automatically, same as visiting "/" would.
   useEffect(() => {

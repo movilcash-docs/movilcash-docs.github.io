@@ -7,12 +7,14 @@ export interface WikiPage {
   name: string
   /** File name without the .md extension, used for routing. */
   slug: string
+  modifiedTime: string
 }
 
 export interface WikiAsset {
   id: string
   name: string
   mimeType: string
+  modifiedTime: string
 }
 
 export interface WikiSection {
@@ -30,7 +32,13 @@ export interface WikiSection {
 const INDEX_FILE_NAME = 'index.md'
 
 function toPage(file: DriveFile): WikiPage {
-  return { type: 'page', id: file.id, name: file.name, slug: file.name.replace(/\.md$/i, '') }
+  return {
+    type: 'page',
+    id: file.id,
+    name: file.name,
+    slug: file.name.replace(/\.md$/i, ''),
+    modifiedTime: file.modifiedTime,
+  }
 }
 
 export async function buildWikiTree(
@@ -58,6 +66,6 @@ export async function buildWikiTree(
     indexPage: indexFile ? toPage(indexFile) : null,
     pages,
     sections,
-    assets: otherFiles.map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType })),
+    assets: otherFiles.map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, modifiedTime: f.modifiedTime })),
   }
 }

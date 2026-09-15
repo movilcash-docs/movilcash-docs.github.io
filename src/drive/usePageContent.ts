@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { getFileText } from './driveApi'
+import { getPageContent } from '../cache/pageCache'
+import type { WikiPage } from './wikiTree'
 
 interface UsePageContentResult {
   content: string | null
@@ -7,13 +8,13 @@ interface UsePageContentResult {
   error: string | null
 }
 
-export function usePageContent(accessToken: string | null, pageId: string | null): UsePageContentResult {
+export function usePageContent(accessToken: string | null, page: WikiPage | null): UsePageContentResult {
   const [content, setContent] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!accessToken || !pageId) {
+    if (!accessToken || !page) {
       setContent(null)
       return
     }
@@ -22,7 +23,7 @@ export function usePageContent(accessToken: string | null, pageId: string | null
     setIsLoading(true)
     setError(null)
 
-    getFileText(pageId, accessToken)
+    getPageContent(page.id, page.modifiedTime, accessToken)
       .then((text) => {
         if (!cancelled) setContent(text)
       })
@@ -36,7 +37,7 @@ export function usePageContent(accessToken: string | null, pageId: string | null
     return () => {
       cancelled = true
     }
-  }, [accessToken, pageId])
+  }, [accessToken, page])
 
   return { content, isLoading, error }
 }

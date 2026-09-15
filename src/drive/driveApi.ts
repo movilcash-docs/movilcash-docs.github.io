@@ -136,6 +136,30 @@ export async function trashFile(fileId: string, accessToken: string): Promise<vo
   })
 }
 
+/** Renames a file or folder, leaving its content/location untouched. */
+export async function renameFile(fileId: string, name: string, accessToken: string): Promise<DriveFile> {
+  const response = await driveFetch(`${FILES_ENDPOINT}/${fileId}?fields=${FILE_FIELDS}`, accessToken, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  return response.json()
+}
+
+/** Moves a file/folder from one parent folder to another. */
+export async function moveFile(
+  fileId: string,
+  fromFolderId: string,
+  toFolderId: string,
+  accessToken: string,
+): Promise<DriveFile> {
+  const params = new URLSearchParams({ addParents: toFolderId, removeParents: fromFolderId, fields: FILE_FIELDS })
+  const response = await driveFetch(`${FILES_ENDPOINT}/${fileId}?${params.toString()}`, accessToken, {
+    method: 'PATCH',
+  })
+  return response.json()
+}
+
 export interface DriveRevision {
   id: string
   modifiedTime: string

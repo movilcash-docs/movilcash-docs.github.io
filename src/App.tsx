@@ -4,6 +4,7 @@ import { useAuth } from './auth/AuthContext'
 import { setPageContent } from './cache/pageCache'
 import { TopBar } from './components/TopBar'
 import { ConfirmDeleteDialog } from './components/ConfirmDeleteDialog'
+import { MoveConfirmDialog } from './components/MoveConfirmDialog'
 import { PromptDialog } from './components/PromptDialog'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,8 +26,15 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from 'cn'
-import { createFile, createFolder, trashFile, updateFileContent } from './drive/driveApi'
-import { findSectionForGoogleFile, findSectionForNotebook, findSectionForPage, findSectionForPdf } from './drive/findSection'
+import { createFile, createFolder, moveFile, renameFile, trashFile, updateFileContent } from './drive/driveApi'
+import {
+  findSectionById,
+  findSectionForGoogleFile,
+  findSectionForNotebook,
+  findSectionForPage,
+  findSectionForPdf,
+  sectionContains,
+} from './drive/findSection'
 import { flattenPages } from './drive/flattenPages'
 import { MarkdownView } from './drive/MarkdownView'
 import { NotebookView } from './drive/NotebookView'
@@ -43,7 +51,7 @@ import { useWikiTree } from './drive/useWikiTree'
 import { VersionHistoryDialog } from './drive/VersionHistoryDialog'
 import { buildPathIndex } from './drive/wikiPathIndex'
 import { WikiTreeView } from './drive/WikiTreeView'
-import type { WikiGoogleFile, WikiNotebook, WikiPage, WikiPdf, WikiSection } from './drive/wikiTree'
+import type { TreeItemRef, WikiGoogleFile, WikiNotebook, WikiPage, WikiPdf, WikiSection } from './drive/wikiTree'
 
 function App() {
   const { isAuthenticated, isLoading, error, signIn, signOut, accessToken, user } = useAuth()
@@ -140,6 +148,12 @@ function WikiExplorer({
   const [createSectionOpen, setCreateSectionOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<DeletableItem | null>(null)
   const [sectionToDelete, setSectionToDelete] = useState<WikiSection | null>(null)
+  const [renameTarget, setRenameTarget] = useState<TreeItemRef | null>(null)
+  const [moveRequest, setMoveRequest] = useState<{
+    item: TreeItemRef
+    sourceParentId: string
+    target: { id: string; name: string }
+  } | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [duplicateOpen, setDuplicateOpen] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
@@ -314,7 +328,9 @@ function WikiExplorer({
     try {
       await trashFile(deleteTarget.id, accessToken)
       if (selectedPage?.id === deleteTarget.id) selectPage(null)
+      if (selectedNotebook?.id === deleteTarget.id) setSelectedNotebook(null)
       if (selectedPdf?.id === deleteTarget.id) setSelectedPdf(null)
+      if (selectedGoogleFile?.id === deleteTarget.id) setSelectedGoogleFile(null)
       setDeleteTarget(null)
       refresh()
     } catch (err) {
@@ -328,6 +344,53 @@ function WikiExplorer({
       await trashFile(sectionToDelete.id, accessToken)
       // The deleted section may still contain the page currently open — bail out of it either way.
       selectPage(null)
+      refresh()
+    } catch (err) {
+      window.alert((err as Error).message)
+    }
+  }
+
+  function handleDeleteItem(item: TreeItemRef) {
+    setDeleteTarget({ id: item.id, label: item.label })
+  }
+
+  async function handleRenameConfirm(newLabel: string) {
+    if (!accessToken || !renameTarget) return
+    const finalName =
+      renameTarget.kind === 'page'
+        ? newLabel.toLowerCase().endsWith('.md')
+          ? newLabel
+          : `${newLabel}.md`
+        : renameTarget.kind === 'notebook'
+          ? newLabel.toLowerCase().endsWith('.ipynb')
+            ? newLabel
+            : `${newLabel}.ipynb`
+          : newLabel
+    try {
+      await renameFile(renameTarget.id, finalName, accessToken)
+      refresh()
+    } catch (err) {
+      window.alert((err as Error).message)
+    }
+  }
+
+  function handleRequestMove(item: TreeItemRef, sourceParentId: string, target: { id: string; name: string }) {
+    if (!tree) return
+    if (item.kind === 'section') {
+      const draggedSection = findSectionById(tree, item.id)
+      if (draggedSection && sectionContains(draggedSection, target.id)) {
+        window.alert('No se puede mover una sección dentro de sí misma o de una subsección suya.')
+        return
+      }
+    }
+    setMoveRequest({ item, sourceParentId, target })
+  }
+
+  async function handleConfirmMove() {
+    if (!accessToken || !moveRequest) return
+    const { item, sourceParentId, target } = moveRequest
+    try {
+      await moveFile(item.id, sourceParentId, target.id, accessToken)
       refresh()
     } catch (err) {
       window.alert((err as Error).message)
@@ -428,6 +491,9 @@ function WikiExplorer({
                 setCreateSectionOpen(true)
               }}
               onDeleteSection={setSectionToDelete}
+              onRenameItem={setRenameTarget}
+              onDeleteItem={handleDeleteItem}
+              onRequestMove={handleRequestMove}
             />
           </ScrollArea>
           <div className="text-muted-foreground mt-2 border-t pt-2 text-center text-xs">Build {__BUILD_ID__}</div>
@@ -663,6 +729,26 @@ function WikiExplorer({
         description="Se mueve a la papelera de Google Drive junto con todo su contenido (páginas, imágenes y subsecciones). Es recuperable desde ahí, pero no dentro de la wiki."
         onConfirm={handleConfirmDeleteSection}
       />
+      {renameTarget && (
+        <PromptDialog
+          open={renameTarget !== null}
+          onOpenChange={(open) => !open && setRenameTarget(null)}
+          title="Renombrar"
+          label="Nuevo nombre"
+          defaultValue={renameTarget.label}
+          confirmLabel="Renombrar"
+          onConfirm={handleRenameConfirm}
+        />
+      )}
+      {moveRequest && (
+        <MoveConfirmDialog
+          open={moveRequest !== null}
+          onOpenChange={(open) => !open && setMoveRequest(null)}
+          itemLabel={moveRequest.item.label}
+          targetLabel={moveRequest.target.name}
+          onConfirm={handleConfirmMove}
+        />
+      )}
       <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

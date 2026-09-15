@@ -42,3 +42,19 @@ export function findSectionForPdf(section: WikiSection, pdfId: string): SectionL
 export function findSectionForGoogleFile(section: WikiSection, fileId: string): SectionLocation | null {
   return findSectionContaining(section, (s) => (s.googleFiles ?? []).some((f) => f.id === fileId))
 }
+
+/** True if `sectionId` is `root` itself or one of its descendants — used to block dropping a section into itself. */
+export function sectionContains(root: WikiSection, sectionId: string): boolean {
+  if (root.id === sectionId) return true
+  return root.sections.some((child) => sectionContains(child, sectionId))
+}
+
+/** Finds a section anywhere in the tree by its own id. */
+export function findSectionById(root: WikiSection, sectionId: string): WikiSection | null {
+  if (root.id === sectionId) return root
+  for (const child of root.sections) {
+    const found = findSectionById(child, sectionId)
+    if (found) return found
+  }
+  return null
+}

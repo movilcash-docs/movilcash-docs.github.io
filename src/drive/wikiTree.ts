@@ -60,6 +60,14 @@ export interface WikiSection {
   assets: WikiAsset[]
 }
 
+/** A tree item being renamed, moved, or deleted from the sidebar — enough info for the UI + API calls. */
+export interface TreeItemRef {
+  kind: 'section' | 'page' | 'notebook' | 'pdf' | 'gdoc' | 'gsheet'
+  id: string
+  /** Extension-less for pages/notebooks (so the rename prompt doesn't make you retype ".md"), full name otherwise. */
+  label: string
+}
+
 const INDEX_FILE_NAME = 'index.md'
 
 function sortByName<T>(items: T[], key: (item: T) => string): T[] {

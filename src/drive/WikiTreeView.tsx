@@ -36,7 +36,9 @@ export function WikiTreeView({
   onDeleteSection,
   depth = 0,
 }: Props) {
-  const hasChildren = section.pages.length > 0 || section.notebooks.length > 0 || section.sections.length > 0
+  // Defensive: `notebooks` can be missing on a stale cached tree from before that field existed.
+  const notebooks = section.notebooks ?? []
+  const hasChildren = section.pages.length > 0 || notebooks.length > 0 || section.sections.length > 0
   const [open, setOpen] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -120,7 +122,7 @@ export function WikiTreeView({
                 {page.slug}
               </Button>
             ))}
-            {section.notebooks.map((notebook) => (
+            {notebooks.map((notebook) => (
               <Button
                 key={notebook.id}
                 variant="ghost"

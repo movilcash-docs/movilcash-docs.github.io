@@ -104,6 +104,12 @@ function App() {
   )
 }
 
+/** Minimal shape the delete-confirmation dialog needs — any Drive file (page, PDF, etc.) qualifies. */
+interface DeletableItem {
+  id: string
+  label: string
+}
+
 interface WikiExplorerProps {
   accessToken: string | null
   rootFolderId: string
@@ -130,7 +136,7 @@ function WikiExplorer({
   const [activeSectionId, setActiveSectionId] = useState(rootFolderId)
   const [createPageOpen, setCreatePageOpen] = useState(false)
   const [createSectionOpen, setCreateSectionOpen] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<WikiPage | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<DeletableItem | null>(null)
   const [sectionToDelete, setSectionToDelete] = useState<WikiSection | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [duplicateOpen, setDuplicateOpen] = useState(false)
@@ -305,6 +311,7 @@ function WikiExplorer({
     try {
       await trashFile(deleteTarget.id, accessToken)
       if (selectedPage?.id === deleteTarget.id) selectPage(null)
+      if (selectedPdf?.id === deleteTarget.id) setSelectedPdf(null)
       setDeleteTarget(null)
       refresh()
     } catch (err) {
@@ -468,6 +475,31 @@ function WikiExplorer({
                   {rootFolderName}
                   {currentPdfSection && currentPdfSection.path.length > 0 && ` / ${currentPdfSection.path.join(' / ')}`}
                 </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={isFavorite(selectedPdf.id) ? 'Quitar de favoritos' : 'Marcar como favorito'}
+                    onClick={() => toggleFavorite(selectedPdf.id)}
+                  >
+                    <Star className={cn('size-4', isFavorite(selectedPdf.id) && 'fill-yellow-500 text-yellow-500')} />
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="icon" aria-label="Más opciones">
+                        <MoreHorizontal />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onSelect={() => setDeleteTarget({ id: selectedPdf.id, label: selectedPdf.name })}
+                      >
+                        Eliminar
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
               <PdfView pdf={selectedPdf} accessToken={accessToken} />
             </article>
@@ -547,7 +579,10 @@ function WikiExplorer({
                       <DropdownMenuItem onSelect={() => setDuplicateOpen(true)}>Hacer una copia</DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => window.print()}>Descargar PDF</DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(selectedPage)}>
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onSelect={() => setDeleteTarget({ id: selectedPage.id, label: selectedPage.slug })}
+                      >
                         Eliminar
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -627,7 +662,7 @@ function WikiExplorer({
       <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar "{deleteTarget?.slug}"?</AlertDialogTitle>
+            <AlertDialogTitle>¿Eliminar "{deleteTarget?.label}"?</AlertDialogTitle>
             <AlertDialogDescription>
               Queda recuperable desde la papelera de Google Drive, no se borra para siempre.
             </AlertDialogDescription>

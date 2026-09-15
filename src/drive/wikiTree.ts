@@ -1,5 +1,9 @@
 import { FOLDER_MIME_TYPE, listChildren, type DriveFile } from './driveApi'
 
+const GOOGLE_DOC_MIME_TYPE = 'application/vnd.google-apps.document'
+const GOOGLE_SHEET_MIME_TYPE = 'application/vnd.google-apps.spreadsheet'
+const PDF_MIME_TYPE = 'application/pdf'
+
 export interface WikiPage {
   type: 'page'
   id: string
@@ -20,6 +24,20 @@ export interface WikiNotebook {
   modifiedTime: string
 }
 
+export interface WikiPdf {
+  type: 'pdf'
+  id: string
+  name: string
+  modifiedTime: string
+}
+
+export interface WikiGoogleFile {
+  type: 'gdoc' | 'gsheet'
+  id: string
+  name: string
+  modifiedTime: string
+}
+
 export interface WikiAsset {
   id: string
   name: string
@@ -35,8 +53,10 @@ export interface WikiSection {
   indexPage: WikiPage | null
   pages: WikiPage[]
   notebooks: WikiNotebook[]
+  pdfs: WikiPdf[]
+  googleFiles: WikiGoogleFile[]
   sections: WikiSection[]
-  /** Non-.md, non-.ipynb, non-folder files in this section (images, etc.), for resolving relative links. */
+  /** Everything else in this section (images, etc.), for resolving relative links from markdown. */
   assets: WikiAsset[]
 }
 
@@ -72,13 +92,20 @@ export async function buildWikiTree(
   const folders = children.filter((f) => f.mimeType === FOLDER_MIME_TYPE)
   const mdFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && /\.md$/i.test(f.name))
   const notebookFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && /\.ipynb$/i.test(f.name))
-  const otherFiles = children.filter(
-    (f) => f.mimeType !== FOLDER_MIME_TYPE && !/\.md$/i.test(f.name) && !/\.ipynb$/i.test(f.name),
-  )
+  const pdfFiles = children.filter((f) => f.mimeType === PDF_MIME_TYPE)
+  const googleDocFiles = children.filter((f) => f.mimeType === GOOGLE_DOC_MIME_TYPE)
+  const googleSheetFiles = children.filter((f) => f.mimeType === GOOGLE_SHEET_MIME_TYPE)
+  const classified = new Set([...mdFiles, ...notebookFiles, ...pdfFiles, ...googleDocFiles, ...googleSheetFiles])
+  const otherFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && !classified.has(f))
 
   const indexFile = mdFiles.find((f) => f.name.toLowerCase() === INDEX_FILE_NAME)
   const pages = mdFiles.filter((f) => f !== indexFile).map(toPage)
   const notebooks = notebookFiles.map(toNotebook)
+  const pdfs = pdfFiles.map((f) => ({ type: 'pdf' as const, id: f.id, name: f.name, modifiedTime: f.modifiedTime }))
+  const googleFiles = [
+    ...googleDocFiles.map((f) => ({ type: 'gdoc' as const, id: f.id, name: f.name, modifiedTime: f.modifiedTime })),
+    ...googleSheetFiles.map((f) => ({ type: 'gsheet' as const, id: f.id, name: f.name, modifiedTime: f.modifiedTime })),
+  ]
 
   const sections = await Promise.all(
     folders.map((folder) => buildWikiTree(folder.id, folder.name, accessToken)),
@@ -91,6 +118,8 @@ export async function buildWikiTree(
     indexPage: indexFile ? toPage(indexFile) : null,
     pages,
     notebooks,
+    pdfs,
+    googleFiles,
     sections,
     assets: otherFiles.map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, modifiedTime: f.modifiedTime })),
   }

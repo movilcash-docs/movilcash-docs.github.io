@@ -6,33 +6,39 @@ export interface SectionLocation {
   path: string[]
 }
 
-/** Finds the section that directly contains the given page (by id), searching the whole tree. */
-export function findSectionForPage(
+function findSectionContaining(
   section: WikiSection,
-  pageId: string,
+  isHere: (section: WikiSection) => boolean,
   path: string[] = [],
 ): SectionLocation | null {
-  const isHere = section.indexPage?.id === pageId || section.pages.some((p) => p.id === pageId)
-  if (isHere) return { section, path }
+  if (isHere(section)) return { section, path }
 
   for (const child of section.sections) {
-    const found = findSectionForPage(child, pageId, [...path, child.name])
+    const found = findSectionContaining(child, isHere, [...path, child.name])
     if (found) return found
   }
   return null
 }
 
-/** Finds the section that directly contains the given notebook (by id), searching the whole tree. */
-export function findSectionForNotebook(
-  section: WikiSection,
-  notebookId: string,
-  path: string[] = [],
-): SectionLocation | null {
-  if (section.notebooks.some((n) => n.id === notebookId)) return { section, path }
+/** Finds the section that directly contains the given page (by id), searching the whole tree. */
+export function findSectionForPage(section: WikiSection, pageId: string): SectionLocation | null {
+  return findSectionContaining(
+    section,
+    (s) => s.indexPage?.id === pageId || s.pages.some((p) => p.id === pageId),
+  )
+}
 
-  for (const child of section.sections) {
-    const found = findSectionForNotebook(child, notebookId, [...path, child.name])
-    if (found) return found
-  }
-  return null
+/** Finds the section that directly contains the given notebook (by id), searching the whole tree. */
+export function findSectionForNotebook(section: WikiSection, notebookId: string): SectionLocation | null {
+  return findSectionContaining(section, (s) => (s.notebooks ?? []).some((n) => n.id === notebookId))
+}
+
+/** Finds the section that directly contains the given PDF (by id), searching the whole tree. */
+export function findSectionForPdf(section: WikiSection, pdfId: string): SectionLocation | null {
+  return findSectionContaining(section, (s) => (s.pdfs ?? []).some((p) => p.id === pdfId))
+}
+
+/** Finds the section that directly contains the given Google Doc/Sheet (by id), searching the whole tree. */
+export function findSectionForGoogleFile(section: WikiSection, fileId: string): SectionLocation | null {
+  return findSectionContaining(section, (s) => (s.googleFiles ?? []).some((f) => f.id === fileId))
 }

@@ -1,4 +1,4 @@
-import { ExternalLink, MoreHorizontal, Share2, Star } from 'lucide-react'
+import { ExternalLink, FileSpreadsheet, FileText, MoreHorizontal, Share2, Star } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import { setPageContent } from './cache/pageCache'
@@ -26,11 +26,12 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from 'cn'
 import { createFile, createFolder, trashFile, updateFileContent } from './drive/driveApi'
-import { findSectionForNotebook, findSectionForPage } from './drive/findSection'
+import { findSectionForGoogleFile, findSectionForNotebook, findSectionForPage, findSectionForPdf } from './drive/findSection'
 import { flattenPages } from './drive/flattenPages'
 import { MarkdownView } from './drive/MarkdownView'
 import { NotebookView } from './drive/NotebookView'
 import { PageEditor } from './drive/PageEditor'
+import { PdfView } from './drive/PdfView'
 import { pickFolder } from './drive/pickFolder'
 import { useFavorites } from './drive/useFavorites'
 import { useNotebookContent } from './drive/useNotebookContent'
@@ -40,7 +41,7 @@ import { useWikiTree } from './drive/useWikiTree'
 import { VersionHistoryDialog } from './drive/VersionHistoryDialog'
 import { buildPathIndex } from './drive/wikiPathIndex'
 import { WikiTreeView } from './drive/WikiTreeView'
-import type { WikiNotebook, WikiPage, WikiSection } from './drive/wikiTree'
+import type { WikiGoogleFile, WikiNotebook, WikiPage, WikiPdf, WikiSection } from './drive/wikiTree'
 
 function App() {
   const { isAuthenticated, isLoading, error, signIn, signOut, accessToken, user } = useAuth()
@@ -123,6 +124,8 @@ function WikiExplorer({
   const { tree, isLoading, error, refresh } = useWikiTree(accessToken, rootFolderId, rootFolderName)
   const [selectedPage, setSelectedPage] = useState<WikiPage | null>(null)
   const [selectedNotebook, setSelectedNotebook] = useState<WikiNotebook | null>(null)
+  const [selectedPdf, setSelectedPdf] = useState<WikiPdf | null>(null)
+  const [selectedGoogleFile, setSelectedGoogleFile] = useState<WikiGoogleFile | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [activeSectionId, setActiveSectionId] = useState(rootFolderId)
   const [createPageOpen, setCreatePageOpen] = useState(false)
@@ -153,6 +156,14 @@ function WikiExplorer({
     () => (tree && selectedNotebook ? findSectionForNotebook(tree, selectedNotebook.id) : null),
     [tree, selectedNotebook],
   )
+  const currentPdfSection = useMemo(
+    () => (tree && selectedPdf ? findSectionForPdf(tree, selectedPdf.id) : null),
+    [tree, selectedPdf],
+  )
+  const currentGoogleFileSection = useMemo(
+    () => (tree && selectedGoogleFile ? findSectionForGoogleFile(tree, selectedGoogleFile.id) : null),
+    [tree, selectedGoogleFile],
+  )
   const pathIndex = useMemo(() => (tree ? buildPathIndex(tree) : null), [tree])
 
   // Landing view: restore a shared "#page=<id>" deep link if present, otherwise show the root
@@ -182,18 +193,40 @@ function WikiExplorer({
   function selectPage(page: WikiPage | null) {
     setSelectedPage(page)
     setSelectedNotebook(null)
+    setSelectedPdf(null)
+    setSelectedGoogleFile(null)
     setIsEditing(false)
   }
 
   function selectNotebook(notebook: WikiNotebook) {
     setSelectedNotebook(notebook)
     setSelectedPage(null)
+    setSelectedPdf(null)
+    setSelectedGoogleFile(null)
+    setIsEditing(false)
+  }
+
+  function selectPdf(pdf: WikiPdf) {
+    setSelectedPdf(pdf)
+    setSelectedPage(null)
+    setSelectedNotebook(null)
+    setSelectedGoogleFile(null)
+    setIsEditing(false)
+  }
+
+  function selectGoogleFile(file: WikiGoogleFile) {
+    setSelectedGoogleFile(file)
+    setSelectedPage(null)
+    setSelectedNotebook(null)
+    setSelectedPdf(null)
     setIsEditing(false)
   }
 
   function selectSection(section: WikiSection) {
     setSelectedPage(null)
     setSelectedNotebook(null)
+    setSelectedPdf(null)
+    setSelectedGoogleFile(null)
     setIsEditing(false)
     setActiveSectionId(section.id)
   }
@@ -369,8 +402,12 @@ function WikiExplorer({
               section={tree}
               selectedPageId={selectedPage?.id ?? null}
               selectedNotebookId={selectedNotebook?.id ?? null}
+              selectedPdfId={selectedPdf?.id ?? null}
+              selectedGoogleFileId={selectedGoogleFile?.id ?? null}
               onSelectPage={selectPage}
               onSelectNotebook={selectNotebook}
+              onSelectPdf={selectPdf}
+              onSelectGoogleFile={selectGoogleFile}
               onSelectSection={selectSection}
               onCreatePage={(s) => {
                 setActiveSectionId(s.id)
@@ -385,13 +422,15 @@ function WikiExplorer({
           </ScrollArea>
         </aside>
         <section className="flex-1 overflow-y-auto p-8">
-          {!selectedPage && !selectedNotebook && !tree.indexPage && (
+          {!selectedPage && !selectedNotebook && !selectedPdf && !selectedGoogleFile && !tree.indexPage && (
             <p>
               No hay <code>index.md</code> en la raíz de "{rootFolderName}" — creá uno en Drive para que sea la
               portada de la wiki, o elegí una página del árbol de la izquierda.
             </p>
           )}
-          {!selectedPage && !selectedNotebook && tree.indexPage && <p>Elegí una página del árbol de la izquierda.</p>}
+          {!selectedPage && !selectedNotebook && !selectedPdf && !selectedGoogleFile && tree.indexPage && (
+            <p>Elegí una página del árbol de la izquierda.</p>
+          )}
           {selectedNotebook && isNotebookLoading && <p>Cargando notebook…</p>}
           {selectedNotebook && notebookError && (
             <p className="text-destructive">
@@ -419,6 +458,50 @@ function WikiExplorer({
                 </Button>
               </div>
               <NotebookView notebook={notebook} accessToken={accessToken} />
+            </article>
+          )}
+          {selectedPdf && accessToken && (
+            <article className="mx-auto max-w-4xl">
+              <div className="mb-6 flex items-center justify-between gap-4 print:hidden">
+                <div className="text-muted-foreground min-w-0 truncate text-sm">
+                  {rootFolderName}
+                  {currentPdfSection && currentPdfSection.path.length > 0 && ` / ${currentPdfSection.path.join(' / ')}`}
+                </div>
+              </div>
+              <PdfView pdf={selectedPdf} accessToken={accessToken} />
+            </article>
+          )}
+          {selectedGoogleFile && (
+            <article className="mx-auto flex max-w-3xl flex-col items-center gap-4 py-16 text-center">
+              <div className="text-muted-foreground w-full truncate text-left text-sm">
+                {rootFolderName}
+                {currentGoogleFileSection &&
+                  currentGoogleFileSection.path.length > 0 &&
+                  ` / ${currentGoogleFileSection.path.join(' / ')}`}
+              </div>
+              {selectedGoogleFile.type === 'gsheet' ? (
+                <FileSpreadsheet className="text-green-600" size={48} />
+              ) : (
+                <FileText className="text-blue-500" size={48} />
+              )}
+              <h1 className="text-xl font-semibold">{selectedGoogleFile.name}</h1>
+              <p className="text-muted-foreground">
+                Este archivo no se renderiza dentro de la wiki — abrilo directamente en Google{' '}
+                {selectedGoogleFile.type === 'gsheet' ? 'Sheets' : 'Docs'}.
+              </p>
+              <Button asChild>
+                <a
+                  href={
+                    selectedGoogleFile.type === 'gsheet'
+                      ? `https://docs.google.com/spreadsheets/d/${selectedGoogleFile.id}/edit`
+                      : `https://docs.google.com/document/d/${selectedGoogleFile.id}/edit`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink /> Abrir en {selectedGoogleFile.type === 'gsheet' ? 'Sheets' : 'Docs'}
+                </a>
+              </Button>
             </article>
           )}
           {selectedPage && isPageLoading && <p>Cargando página…</p>}

@@ -1,4 +1,4 @@
-import { ChevronRight, FilePlus, FolderPlus, NotebookText, Plus, Trash2 } from 'lucide-react'
+import { ChevronRight, FilePlus, FileSpreadsheet, FileText, FolderPlus, NotebookText, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from 'cn'
 import { Button } from '@/components/ui/button'
@@ -9,14 +9,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import type { WikiNotebook, WikiPage, WikiSection } from './wikiTree'
+import type { WikiGoogleFile, WikiNotebook, WikiPage, WikiPdf, WikiSection } from './wikiTree'
 
 interface Props {
   section: WikiSection
   selectedPageId: string | null
   selectedNotebookId: string | null
+  selectedPdfId: string | null
+  selectedGoogleFileId: string | null
   onSelectPage: (page: WikiPage) => void
   onSelectNotebook: (notebook: WikiNotebook) => void
+  onSelectPdf: (pdf: WikiPdf) => void
+  onSelectGoogleFile: (file: WikiGoogleFile) => void
   onSelectSection: (section: WikiSection) => void
   onCreatePage: (section: WikiSection) => void
   onCreateSection: (section: WikiSection) => void
@@ -28,17 +32,28 @@ export function WikiTreeView({
   section,
   selectedPageId,
   selectedNotebookId,
+  selectedPdfId,
+  selectedGoogleFileId,
   onSelectPage,
   onSelectNotebook,
+  onSelectPdf,
+  onSelectGoogleFile,
   onSelectSection,
   onCreatePage,
   onCreateSection,
   onDeleteSection,
   depth = 0,
 }: Props) {
-  // Defensive: `notebooks` can be missing on a stale cached tree from before that field existed.
+  // Defensive: these can be missing on a stale cached tree from before the field existed.
   const notebooks = section.notebooks ?? []
-  const hasChildren = section.pages.length > 0 || notebooks.length > 0 || section.sections.length > 0
+  const pdfs = section.pdfs ?? []
+  const googleFiles = section.googleFiles ?? []
+  const hasChildren =
+    section.pages.length > 0 ||
+    notebooks.length > 0 ||
+    pdfs.length > 0 ||
+    googleFiles.length > 0 ||
+    section.sections.length > 0
   const [open, setOpen] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -137,14 +152,49 @@ export function WikiTreeView({
                 {notebook.slug}
               </Button>
             ))}
+            {pdfs.map((pdf) => (
+              <Button
+                key={pdf.id}
+                variant="ghost"
+                size="sm"
+                className={cn('justify-start gap-1.5 truncate', pdf.id === selectedPdfId && 'bg-muted font-semibold')}
+                onClick={() => onSelectPdf(pdf)}
+              >
+                <FileText className="size-3.5 shrink-0 text-red-500" />
+                {pdf.name}
+              </Button>
+            ))}
+            {googleFiles.map((file) => (
+              <Button
+                key={file.id}
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  'justify-start gap-1.5 truncate',
+                  file.id === selectedGoogleFileId && 'bg-muted font-semibold',
+                )}
+                onClick={() => onSelectGoogleFile(file)}
+              >
+                {file.type === 'gsheet' ? (
+                  <FileSpreadsheet className="size-3.5 shrink-0 text-green-600" />
+                ) : (
+                  <FileText className="size-3.5 shrink-0 text-blue-500" />
+                )}
+                {file.name}
+              </Button>
+            ))}
             {section.sections.map((child) => (
               <WikiTreeView
                 key={child.id}
                 section={child}
                 selectedPageId={selectedPageId}
                 selectedNotebookId={selectedNotebookId}
+                selectedPdfId={selectedPdfId}
+                selectedGoogleFileId={selectedGoogleFileId}
                 onSelectPage={onSelectPage}
                 onSelectNotebook={onSelectNotebook}
+                onSelectPdf={onSelectPdf}
+                onSelectGoogleFile={onSelectGoogleFile}
                 onSelectSection={onSelectSection}
                 onCreatePage={onCreatePage}
                 onCreateSection={onCreateSection}

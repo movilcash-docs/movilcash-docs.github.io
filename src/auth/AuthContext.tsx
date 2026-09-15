@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { getUserInfo, requestAccessToken, revokeAccessToken, type GoogleUserInfo } from './googleAuth'
+import { clearStoredSession, readStoredSession, writeStoredSession } from './tokenStorage'
 
 interface AuthState {
   accessToken: string | null
@@ -18,29 +19,33 @@ interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 const INITIAL_STATE: AuthState = { accessToken: null, user: null, isLoading: true, error: null }
+const TOKEN_LIFETIME_SECONDS = 3600
+// Cleared a bit before the real expiry so a stale token isn't used for a request that's mid-flight.
+const EXPIRY_MARGIN_MS = 60_000
 
-// Access tokens for the `drive` scope are short-lived (~1h) and not persisted
-// across reloads for security; on mount we try a silent, no-popup grant that
-// succeeds only if the browser still has a live Google session/consent.
+// Access tokens are kept in sessionStorage (see tokenStorage.ts) so a plain page refresh reuses
+// the existing one instead of re-running Google's auth flow — that flow can pop a window even for
+// a "silent" attempt (more likely for an unverified/"Testing" app requesting the full Drive scope,
+// which is our case), so avoiding it on every reload is worth the persistence.
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(INITIAL_STATE)
   const expiryTimer = useRef<number | undefined>(undefined)
 
-  const scheduleExpiry = useCallback((expiresInSeconds: number) => {
+  const scheduleExpiry = useCallback((expiresInMs: number) => {
     window.clearTimeout(expiryTimer.current)
-    // Clear the token a bit early so a stale token isn't used for a request that's mid-flight.
-    const marginMs = 60_000
-    expiryTimer.current = window.setTimeout(
-      () => setState((s) => ({ ...s, accessToken: null, user: null })),
-      Math.max(expiresInSeconds * 1000 - marginMs, 0),
-    )
+    expiryTimer.current = window.setTimeout(() => {
+      clearStoredSession()
+      setState((s) => ({ ...s, accessToken: null, user: null }))
+    }, Math.max(expiresInMs - EXPIRY_MARGIN_MS, 0))
   }, [])
 
   const applyToken = useCallback(
-    async (token: string) => {
+    async (token: string, expiresInSeconds: number = TOKEN_LIFETIME_SECONDS) => {
       const user = await getUserInfo(token).catch(() => null)
       setState({ accessToken: token, user, isLoading: false, error: null })
-      scheduleExpiry(3600)
+      const expiresAt = Date.now() + expiresInSeconds * 1000
+      writeStoredSession({ accessToken: token, expiresAt, user })
+      scheduleExpiry(expiresInSeconds * 1000)
     },
     [scheduleExpiry],
   )
@@ -57,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     window.clearTimeout(expiryTimer.current)
+    clearStoredSession()
     if (state.accessToken) {
       await revokeAccessToken(state.accessToken)
     }
@@ -64,6 +70,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [state.accessToken])
 
   useEffect(() => {
+    const stored = readStoredSession()
+    if (stored) {
+      setState({ accessToken: stored.accessToken, user: stored.user, isLoading: false, error: null })
+      scheduleExpiry(stored.expiresAt - Date.now())
+      return
+    }
+
     let cancelled = false
     requestAccessToken({ prompt: 'none' })
       .then(async (token) => {

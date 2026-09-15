@@ -1,8 +1,33 @@
-import { ImageIcon } from 'lucide-react'
-import { useRef, useState } from 'react'
+import {
+  Bold,
+  Code,
+  Heading1,
+  Heading2,
+  Heading3,
+  ImageIcon,
+  Italic,
+  Link as LinkIcon,
+  List,
+  ListChecks,
+  ListOrdered,
+  Quote,
+  Strikethrough,
+  Table as TableIcon,
+} from 'lucide-react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { createFile } from './driveApi'
+import {
+  insertCodeBlock,
+  insertLink,
+  insertTable,
+  setHeadingLevel,
+  togglePrefixLines,
+  wrapSelection,
+  type EditorSelection,
+} from './markdownEditorCommands'
 import { MarkdownView } from './MarkdownView'
 import type { WikiPathIndex } from './wikiPathIndex'
 import type { WikiAsset } from './wikiTree'
@@ -50,6 +75,22 @@ export function PageEditor({
     })
   }
 
+  function applyCommand(command: (sel: EditorSelection) => EditorSelection) {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const result = command({
+      value: textarea.value,
+      selectionStart: textarea.selectionStart,
+      selectionEnd: textarea.selectionEnd,
+    })
+    setContent(result.value)
+    requestAnimationFrame(() => {
+      textarea.focus()
+      textarea.selectionStart = result.selectionStart
+      textarea.selectionEnd = result.selectionEnd
+    })
+  }
+
   async function handleImageUpload(file: File) {
     setIsUploading(true)
     setError(null)
@@ -82,23 +123,7 @@ export function PageEditor({
   return (
     <div className="flex h-full flex-col">
       <div className="mb-3 flex items-center gap-2">
-        <Button variant="outline" size="sm" asChild disabled={isUploading}>
-          <label className="cursor-pointer">
-            <ImageIcon />
-            {isUploading ? 'Subiendo…' : 'Insertar imagen'}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              disabled={isUploading}
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) void handleImageUpload(file)
-                e.target.value = ''
-              }}
-            />
-          </label>
-        </Button>
+        <MarkdownToolbar onCommand={applyCommand} isUploading={isUploading} onUploadImage={handleImageUpload} />
         <div className="flex-1" />
         <Button variant="outline" size="sm" onClick={onCancel} disabled={isSaving}>
           Cancelar
@@ -130,5 +155,96 @@ export function PageEditor({
         </div>
       </div>
     </div>
+  )
+}
+
+interface MarkdownToolbarProps {
+  onCommand: (command: (sel: EditorSelection) => EditorSelection) => void
+  isUploading: boolean
+  onUploadImage: (file: File) => void
+}
+
+function MarkdownToolbar({ onCommand, isUploading, onUploadImage }: MarkdownToolbarProps) {
+  return (
+    <div className="flex flex-wrap items-center gap-0.5">
+      <ToolbarButton label="Negrita" onClick={() => onCommand((s) => wrapSelection(s, '**'))}>
+        <Bold />
+      </ToolbarButton>
+      <ToolbarButton label="Itálica" onClick={() => onCommand((s) => wrapSelection(s, '_'))}>
+        <Italic />
+      </ToolbarButton>
+      <ToolbarButton label="Tachado" onClick={() => onCommand((s) => wrapSelection(s, '~~'))}>
+        <Strikethrough />
+      </ToolbarButton>
+      <ToolbarButton label="Código en línea" onClick={() => onCommand((s) => wrapSelection(s, '`'))}>
+        <Code />
+      </ToolbarButton>
+
+      <Separator orientation="vertical" className="mx-1 h-5" />
+
+      <ToolbarButton label="Título 1" onClick={() => onCommand((s) => setHeadingLevel(s, 1))}>
+        <Heading1 />
+      </ToolbarButton>
+      <ToolbarButton label="Título 2" onClick={() => onCommand((s) => setHeadingLevel(s, 2))}>
+        <Heading2 />
+      </ToolbarButton>
+      <ToolbarButton label="Título 3" onClick={() => onCommand((s) => setHeadingLevel(s, 3))}>
+        <Heading3 />
+      </ToolbarButton>
+
+      <Separator orientation="vertical" className="mx-1 h-5" />
+
+      <ToolbarButton label="Lista" onClick={() => onCommand((s) => togglePrefixLines(s, '- '))}>
+        <List />
+      </ToolbarButton>
+      <ToolbarButton label="Lista numerada" onClick={() => onCommand((s) => togglePrefixLines(s, '1. '))}>
+        <ListOrdered />
+      </ToolbarButton>
+      <ToolbarButton label="Checklist" onClick={() => onCommand((s) => togglePrefixLines(s, '- [ ] '))}>
+        <ListChecks />
+      </ToolbarButton>
+      <ToolbarButton label="Cita" onClick={() => onCommand((s) => togglePrefixLines(s, '> '))}>
+        <Quote />
+      </ToolbarButton>
+
+      <Separator orientation="vertical" className="mx-1 h-5" />
+
+      <ToolbarButton label="Bloque de código" onClick={() => onCommand(insertCodeBlock)}>
+        <Code className="rotate-90" />
+      </ToolbarButton>
+      <ToolbarButton label="Link" onClick={() => onCommand(insertLink)}>
+        <LinkIcon />
+      </ToolbarButton>
+      <ToolbarButton label="Tabla" onClick={() => onCommand(insertTable)}>
+        <TableIcon />
+      </ToolbarButton>
+
+      <Separator orientation="vertical" className="mx-1 h-5" />
+
+      <Button variant="ghost" size="icon-sm" disabled={isUploading} title="Insertar imagen" asChild>
+        <label className="cursor-pointer">
+          <ImageIcon />
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            disabled={isUploading}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) onUploadImage(file)
+              e.target.value = ''
+            }}
+          />
+        </label>
+      </Button>
+    </div>
+  )
+}
+
+function ToolbarButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <Button type="button" variant="ghost" size="icon-sm" title={label} aria-label={label} onClick={onClick}>
+      {children}
+    </Button>
   )
 }

@@ -16,6 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import movilcashIcon from '../assets/movilcash-icon.png'
 import { flattenPages, type FlatPage } from '../drive/flattenPages'
 import type { WikiPage, WikiSection } from '../drive/wikiTree'
 import { useTheme } from '../theme/useTheme'
@@ -53,7 +54,10 @@ export function TopBar({ tree, onSelectPage, accountLabel, onRefresh, onChangeFo
 
   return (
     <header className="flex items-center gap-6 border-b px-4 py-2">
-      <span className="shrink-0 font-bold">Movilcash Docs</span>
+      <span className="flex shrink-0 items-center gap-2 font-bold">
+        <img src={movilcashIcon} alt="" className="size-6" />
+        Movilcash Docs
+      </span>
 
       <Button
         variant="outline"

@@ -51,12 +51,14 @@ import { flattenPages } from './drive/flattenPages'
 import { MarkdownView } from './drive/MarkdownView'
 import { NotebookView } from './drive/NotebookView'
 import { PageByline } from './drive/PageByline'
+import { SeenBy } from './drive/SeenBy'
 import { PageEditor } from './drive/PageEditor'
 import { PdfView } from './drive/PdfView'
 import { pickFolder } from './drive/pickFolder'
 import { useFavorites } from './drive/useFavorites'
 import { useNotebookContent } from './drive/useNotebookContent'
 import { usePageAuthorship } from './drive/usePageAuthorship'
+import { usePageViewTracking } from './drive/usePageViewTracking'
 import { useRootFolder } from './drive/RootFolderContext'
 import { usePageContent } from './drive/usePageContent'
 import { useWikiTree } from './drive/useWikiTree'
@@ -120,6 +122,7 @@ function App() {
       rootFolderId={rootFolder.id}
       rootFolderName={rootFolder.name}
       accountLabel={user?.name ?? user?.email ?? ''}
+      viewer={user ? { email: user.email, name: user.name } : null}
       onChangeFolder={clearRootFolder}
       onSignOut={signOut}
     />
@@ -137,6 +140,7 @@ interface WikiExplorerProps {
   rootFolderId: string
   rootFolderName: string
   accountLabel: string
+  viewer: { email: string; name?: string } | null
   onChangeFolder: () => void
   onSignOut: () => void
 }
@@ -146,6 +150,7 @@ function WikiExplorer({
   rootFolderId,
   rootFolderName,
   accountLabel,
+  viewer,
   onChangeFolder,
   onSignOut,
 }: WikiExplorerProps) {
@@ -178,6 +183,7 @@ function WikiExplorer({
     errorReason: pageErrorReason,
   } = usePageContent(accessToken, selectedPage)
   const pageAuthorship = usePageAuthorship(accessToken, selectedPage?.id ?? null)
+  const pageViews = usePageViewTracking(accessToken, rootFolderId, selectedPage?.id ?? null, viewer)
   const {
     notebook,
     isLoading: isNotebookLoading,
@@ -830,6 +836,7 @@ function WikiExplorer({
                 </div>
               </div>
               <PageByline authorship={pageAuthorship} />
+              <SeenBy views={pageViews} />
               <MarkdownView
                 content={content}
                 assets={currentSection?.section.assets ?? []}

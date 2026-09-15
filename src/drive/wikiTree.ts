@@ -105,8 +105,9 @@ export async function buildWikiTree(
 ): Promise<WikiSection> {
   const children = await listChildren(folderId, accessToken)
 
+  // Folders starting with "." are internal app data (e.g. per-page view logs), not wiki content.
   const folders = sortByName(
-    children.filter((f) => f.mimeType === FOLDER_MIME_TYPE),
+    children.filter((f) => f.mimeType === FOLDER_MIME_TYPE && !f.name.startsWith('.')),
     (f) => f.name,
   )
   const mdFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && /\.md$/i.test(f.name))

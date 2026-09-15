@@ -117,12 +117,17 @@ export async function createFolder(parentId: string, name: string, accessToken: 
   return response.json()
 }
 
-/** Replaces a page's markdown text, leaving its name/location untouched. */
-export async function updateFileContent(fileId: string, content: string, accessToken: string): Promise<DriveFile> {
+/** Replaces a file's text content, leaving its name/location untouched. */
+export async function updateFileContent(
+  fileId: string,
+  content: string,
+  accessToken: string,
+  contentType = 'text/markdown',
+): Promise<DriveFile> {
   const response = await driveFetch(
     `${UPLOAD_ENDPOINT}/${fileId}?uploadType=media&fields=${FILE_FIELDS}`,
     accessToken,
-    { method: 'PATCH', headers: { 'Content-Type': 'text/markdown' }, body: content },
+    { method: 'PATCH', headers: { 'Content-Type': contentType }, body: content },
   )
   return response.json()
 }

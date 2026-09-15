@@ -118,8 +118,8 @@ export function WikiTreeView({
               variant="ghost"
               size="icon-xs"
               className={cn(
-                'shrink-0 opacity-0 transition-opacity focus-visible:opacity-100',
-                actionsVisible && 'opacity-100',
+                'shrink-0 transition-opacity focus-visible:opacity-100',
+                actionsVisible ? 'opacity-100' : 'opacity-0',
               )}
               aria-label={`Agregar contenido en ${section.name}`}
             >
@@ -140,8 +140,8 @@ export function WikiTreeView({
             variant="ghost"
             size="icon-xs"
             className={cn(
-              'text-destructive hover:text-destructive shrink-0 opacity-0 transition-opacity focus-visible:opacity-100',
-              actionsVisible && 'opacity-100',
+              'text-destructive hover:text-destructive shrink-0 transition-opacity focus-visible:opacity-100',
+              actionsVisible ? 'opacity-100' : 'opacity-0',
             )}
             aria-label={`Eliminar sección ${section.name}`}
             onClick={() => onDeleteSection(section)}

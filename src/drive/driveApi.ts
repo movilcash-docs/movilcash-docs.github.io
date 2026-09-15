@@ -135,3 +135,25 @@ export async function trashFile(fileId: string, accessToken: string): Promise<vo
     body: JSON.stringify({ trashed: true }),
   })
 }
+
+export interface DriveRevision {
+  id: string
+  modifiedTime: string
+  lastModifyingUser?: { displayName?: string; emailAddress?: string }
+}
+
+/** Lists a file's past revisions, oldest first. Each edit via updateFileContent creates one. */
+export async function listRevisions(fileId: string, accessToken: string): Promise<DriveRevision[]> {
+  const response = await driveFetch(
+    `${FILES_ENDPOINT}/${fileId}/revisions?fields=revisions(id,modifiedTime,lastModifyingUser(displayName,emailAddress))`,
+    accessToken,
+  )
+  const data = (await response.json()) as { revisions?: DriveRevision[] }
+  return data.revisions ?? []
+}
+
+/** Fetches the text content of a specific past revision (not the current one). */
+export async function getRevisionText(fileId: string, revisionId: string, accessToken: string): Promise<string> {
+  const response = await driveFetch(`${FILES_ENDPOINT}/${fileId}/revisions/${revisionId}?alt=media`, accessToken)
+  return response.text()
+}

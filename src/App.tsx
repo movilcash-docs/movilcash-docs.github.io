@@ -23,6 +23,7 @@ import { pickFolder } from './drive/pickFolder'
 import { useRootFolder } from './drive/RootFolderContext'
 import { usePageContent } from './drive/usePageContent'
 import { useWikiTree } from './drive/useWikiTree'
+import { VersionHistoryDialog } from './drive/VersionHistoryDialog'
 import { buildPathIndex } from './drive/wikiPathIndex'
 import { WikiTreeView } from './drive/WikiTreeView'
 import type { WikiPage, WikiSection } from './drive/wikiTree'
@@ -112,6 +113,7 @@ function WikiExplorer({
   const [createPageOpen, setCreatePageOpen] = useState(false)
   const [createSectionOpen, setCreateSectionOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<WikiPage | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const {
     content,
     isLoading: isPageLoading,
@@ -287,6 +289,9 @@ function WikiExplorer({
                 <Button variant="destructive" size="sm" onClick={() => setDeleteTarget(selectedPage)}>
                   Eliminar
                 </Button>
+                <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}>
+                  Historial
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => window.print()}>
                   Descargar PDF
                 </Button>
@@ -316,6 +321,16 @@ function WikiExplorer({
           )}
         </section>
       </div>
+
+      {selectedPage && accessToken && (
+        <VersionHistoryDialog
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+          page={selectedPage}
+          accessToken={accessToken}
+          onRestore={handleSavePage}
+        />
+      )}
 
       <PromptDialog
         open={createPageOpen}

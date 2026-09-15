@@ -1,5 +1,5 @@
 import { ChevronRight, FilePlus, FileSpreadsheet, FileText, FolderPlus, NotebookText, Plus, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { cn } from 'cn'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -54,17 +54,32 @@ export function WikiTreeView({
     pdfs.length > 0 ||
     googleFiles.length > 0 ||
     section.sections.length > 0
-  const [open, setOpen] = useState(true)
+  // Only the wiki root starts expanded; everything else starts collapsed.
+  const [open, setOpen] = useState(depth === 0)
   const [menuOpen, setMenuOpen] = useState(false)
   const [rowHovered, setRowHovered] = useState(false)
   const actionsVisible = rowHovered || menuOpen
+  const leaveTimeout = useRef<number | undefined>(undefined)
+
+  useEffect(() => () => window.clearTimeout(leaveTimeout.current), [])
+
+  function handlePointerEnter() {
+    window.clearTimeout(leaveTimeout.current)
+    setRowHovered(true)
+  }
+
+  function handlePointerLeave() {
+    // A small delay absorbs the spurious pointerleave some browsers fire when the row's layout
+    // shifts right as a Collapsible below it expands/collapses (content height change mid-hover).
+    leaveTimeout.current = window.setTimeout(() => setRowHovered(false), 150)
+  }
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <div
         className="flex items-center gap-0.5"
-        onMouseEnter={() => setRowHovered(true)}
-        onMouseLeave={() => setRowHovered(false)}
+        onPointerEnter={handlePointerEnter}
+        onPointerLeave={handlePointerLeave}
       >
         {hasChildren ? (
           <CollapsibleTrigger asChild>

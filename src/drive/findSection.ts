@@ -58,3 +58,8 @@ export function findSectionById(root: WikiSection, sectionId: string): WikiSecti
   }
   return null
 }
+
+/** Locates a section by its own id, returning its ancestor path (including its own name). */
+export function findSectionLocationById(root: WikiSection, sectionId: string): SectionLocation | null {
+  return findSectionContaining(root, (s) => s.id === sectionId)
+}

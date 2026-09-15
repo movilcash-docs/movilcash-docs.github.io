@@ -1,4 +1,15 @@
-import { ExternalLink, FileSpreadsheet, FileText, MoreHorizontal, Share2, Star } from 'lucide-react'
+import {
+  ExternalLink,
+  FileSpreadsheet,
+  FileText,
+  Folder,
+  MoreHorizontal,
+  NotebookText,
+  Pencil,
+  Share2,
+  Star,
+  Trash2,
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import { setPageContent } from './cache/pageCache'
@@ -33,6 +44,7 @@ import {
   findSectionForNotebook,
   findSectionForPage,
   findSectionForPdf,
+  findSectionLocationById,
   sectionContains,
 } from './drive/findSection'
 import { flattenPages } from './drive/flattenPages'
@@ -142,6 +154,7 @@ function WikiExplorer({
   const [selectedNotebook, setSelectedNotebook] = useState<WikiNotebook | null>(null)
   const [selectedPdf, setSelectedPdf] = useState<WikiPdf | null>(null)
   const [selectedGoogleFile, setSelectedGoogleFile] = useState<WikiGoogleFile | null>(null)
+  const [viewedSection, setViewedSection] = useState<WikiSection | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [activeSectionId, setActiveSectionId] = useState(rootFolderId)
   const [createPageOpen, setCreatePageOpen] = useState(false)
@@ -187,6 +200,10 @@ function WikiExplorer({
     () => (tree && selectedGoogleFile ? findSectionForGoogleFile(tree, selectedGoogleFile.id) : null),
     [tree, selectedGoogleFile],
   )
+  const viewedSectionLocation = useMemo(
+    () => (tree && viewedSection ? findSectionLocationById(tree, viewedSection.id) : null),
+    [tree, viewedSection],
+  )
   const pathIndex = useMemo(() => (tree ? buildPathIndex(tree) : null), [tree])
 
   // Landing view: restore a shared "#page=<id>" deep link if present, otherwise show the root
@@ -213,11 +230,20 @@ function WikiExplorer({
     if (currentSection) setActiveSectionId(currentSection.section.id)
   }, [currentSection])
 
+  // Keep the section-overview listing in sync with a fresh tree (renames/moves/deletes inside it).
+  useEffect(() => {
+    if (!tree || !viewedSection) return
+    const fresh = findSectionById(tree, viewedSection.id)
+    if (fresh !== viewedSection) setViewedSection(fresh)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tree])
+
   function selectPage(page: WikiPage | null) {
     setSelectedPage(page)
     setSelectedNotebook(null)
     setSelectedPdf(null)
     setSelectedGoogleFile(null)
+    setViewedSection(null)
     setIsEditing(false)
   }
 
@@ -226,6 +252,7 @@ function WikiExplorer({
     setSelectedPage(null)
     setSelectedPdf(null)
     setSelectedGoogleFile(null)
+    setViewedSection(null)
     setIsEditing(false)
   }
 
@@ -234,6 +261,7 @@ function WikiExplorer({
     setSelectedPage(null)
     setSelectedNotebook(null)
     setSelectedGoogleFile(null)
+    setViewedSection(null)
     setIsEditing(false)
   }
 
@@ -242,6 +270,7 @@ function WikiExplorer({
     setSelectedPage(null)
     setSelectedNotebook(null)
     setSelectedPdf(null)
+    setViewedSection(null)
     setIsEditing(false)
   }
 
@@ -250,6 +279,7 @@ function WikiExplorer({
     setSelectedNotebook(null)
     setSelectedPdf(null)
     setSelectedGoogleFile(null)
+    setViewedSection(section)
     setIsEditing(false)
     setActiveSectionId(section.id)
   }
@@ -499,15 +529,130 @@ function WikiExplorer({
           <div className="text-muted-foreground mt-2 border-t pt-2 text-center text-xs">Build {__BUILD_ID__}</div>
         </aside>
         <section className="flex-1 overflow-y-auto p-8">
-          {!selectedPage && !selectedNotebook && !selectedPdf && !selectedGoogleFile && !tree.indexPage && (
-            <p>
-              No hay <code>index.md</code> en la raíz de "{rootFolderName}" — creá uno en Drive para que sea la
-              portada de la wiki, o elegí una página del árbol de la izquierda.
-            </p>
-          )}
-          {!selectedPage && !selectedNotebook && !selectedPdf && !selectedGoogleFile && tree.indexPage && (
+          {!selectedPage &&
+            !selectedNotebook &&
+            !selectedPdf &&
+            !selectedGoogleFile &&
+            !viewedSection &&
+            !tree.indexPage && (
+              <p>
+                No hay <code>index.md</code> en la raíz de "{rootFolderName}" — creá uno en Drive para que sea la
+                portada de la wiki, o elegí una página del árbol de la izquierda.
+              </p>
+            )}
+          {!selectedPage && !selectedNotebook && !selectedPdf && !selectedGoogleFile && !viewedSection && tree.indexPage && (
             <p>Elegí una página del árbol de la izquierda.</p>
           )}
+          {viewedSection &&
+            !selectedPage &&
+            !selectedNotebook &&
+            !selectedPdf &&
+            !selectedGoogleFile &&
+            (() => {
+              const vs = viewedSection
+              const hasContent =
+                vs.sections.length > 0 ||
+                vs.pages.length > 0 ||
+                (vs.notebooks ?? []).length > 0 ||
+                (vs.pdfs ?? []).length > 0 ||
+                (vs.googleFiles ?? []).length > 0
+              return (
+                <article className="mx-auto max-w-3xl">
+                  <div className="mb-2 flex items-center justify-between gap-4">
+                    <div className="text-muted-foreground min-w-0 truncate text-sm">
+                      {rootFolderName}
+                      {viewedSectionLocation &&
+                        viewedSectionLocation.path.length > 0 &&
+                        ` / ${viewedSectionLocation.path.join(' / ')}`}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRenameTarget({ kind: 'section', id: vs.id, label: vs.name })}
+                      >
+                        <Pencil /> Renombrar
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={() => setSectionToDelete(vs)}>
+                        <Trash2 /> Eliminar
+                      </Button>
+                    </div>
+                  </div>
+                  <h1 className="mb-6 text-2xl font-semibold">{vs.name}</h1>
+                  {!hasContent && (
+                    <p className="text-muted-foreground">
+                      Esta sección está vacía. Creá una página o subsección desde el "+" del árbol.
+                    </p>
+                  )}
+                  <ul className="flex flex-col gap-1">
+                    {vs.sections.map((child) => (
+                      <li key={child.id}>
+                        <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => selectSection(child)}>
+                          <Folder className="size-4 shrink-0 text-muted-foreground" />
+                          {child.name}
+                        </Button>
+                      </li>
+                    ))}
+                    {vs.indexPage && (
+                      <li key={vs.indexPage.id}>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start gap-2"
+                          onClick={() => selectPage(vs.indexPage!)}
+                        >
+                          <FileText className="size-4 shrink-0 text-muted-foreground" />
+                          {vs.indexPage.slug}
+                        </Button>
+                      </li>
+                    )}
+                    {vs.pages.map((page) => (
+                      <li key={page.id}>
+                        <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => selectPage(page)}>
+                          <FileText className="size-4 shrink-0 text-muted-foreground" />
+                          {page.slug}
+                        </Button>
+                      </li>
+                    ))}
+                    {(vs.notebooks ?? []).map((notebook) => (
+                      <li key={notebook.id}>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start gap-2"
+                          onClick={() => selectNotebook(notebook)}
+                        >
+                          <NotebookText className="size-4 shrink-0" />
+                          {notebook.slug}
+                        </Button>
+                      </li>
+                    ))}
+                    {(vs.pdfs ?? []).map((pdf) => (
+                      <li key={pdf.id}>
+                        <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => selectPdf(pdf)}>
+                          <FileText className="size-4 shrink-0 text-red-500" />
+                          {pdf.name}
+                        </Button>
+                      </li>
+                    ))}
+                    {(vs.googleFiles ?? []).map((file) => (
+                      <li key={file.id}>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start gap-2"
+                          onClick={() => selectGoogleFile(file)}
+                        >
+                          {file.type === 'gsheet' ? (
+                            <FileSpreadsheet className="size-4 shrink-0 text-green-600" />
+                          ) : (
+                            <FileText className="size-4 shrink-0 text-blue-500" />
+                          )}
+                          {file.name}
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              )
+            })()}
           {selectedNotebook && isNotebookLoading && <p>Cargando notebook…</p>}
           {selectedNotebook && notebookError && (
             <p className="text-destructive">

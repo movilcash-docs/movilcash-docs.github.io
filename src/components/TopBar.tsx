@@ -1,6 +1,7 @@
 import { useMemo, useState, type FocusEvent } from 'react'
 import { flattenPages, type FlatPage } from '../drive/flattenPages'
 import type { WikiPage, WikiSection } from '../drive/wikiTree'
+import { useTheme } from '../theme/useTheme'
 import './TopBar.css'
 
 interface TopBarProps {
@@ -20,6 +21,7 @@ export function TopBar({ tree, onSelectPage, accountLabel, onRefresh, onChangeFo
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const { theme, toggleTheme } = useTheme()
 
   const allPages = useMemo<FlatPage[]>(() => (tree ? flattenPages(tree) : []), [tree])
   const results = useMemo(() => {
@@ -65,6 +67,15 @@ export function TopBar({ tree, onSelectPage, accountLabel, onRefresh, onChangeFo
       </div>
 
       <div className="top-bar-account" onBlur={(e) => closesOnBlur(e, () => setMenuOpen(false))}>
+        <button
+          type="button"
+          className="theme-toggle"
+          aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+          onClick={toggleTheme}
+        >
+          {theme === 'dark' ? '☀' : '🌙'}
+        </button>
         <span className="account-label">{accountLabel}</span>
         <button
           type="button"

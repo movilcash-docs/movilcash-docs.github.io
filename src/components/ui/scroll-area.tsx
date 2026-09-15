@@ -17,7 +17,15 @@ function ScrollArea({
     >
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
-        className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
+        // Radix wraps `children` in its own `<div style="display:table;min-width:100%">` to
+        // measure content size. `display:table` sizes to the *intrinsic* width of its content —
+        // so a single long, non-wrapping string anywhere inside (e.g. a long file name several
+        // levels deep in the wiki tree) stretches that table wide enough to fit it, which then
+        // stretches every row in the sidebar to match and pushes their trailing hover actions
+        // (+/trash) outside the visible, clipped area. Forcing that wrapper back to `display:block`
+        // makes it respect the viewport's own width instead, so text truncates as intended.
+        // See: https://github.com/radix-ui/primitives/issues/926
+        className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 [&>div]:!block"
       >
         {children}
       </ScrollAreaPrimitive.Viewport>

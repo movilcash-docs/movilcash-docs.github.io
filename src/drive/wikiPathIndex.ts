@@ -33,8 +33,18 @@ export function resolveRelativePath(href: string, basePath: string[]): string {
   const segments = href.split('/').filter((s) => s !== '' && s !== '.')
   const result = [...basePath]
   for (const seg of segments) {
-    if (seg === '..') result.pop()
-    else result.push(seg)
+    if (seg === '..') {
+      result.pop()
+      continue
+    }
+    // Segments can be URL-encoded (a name with spaces/parens, etc.) — the path index itself is
+    // keyed by the raw name, so decode before matching. A stray "%" that isn't valid encoding
+    // just falls back to the segment as-is.
+    try {
+      result.push(decodeURIComponent(seg))
+    } catch {
+      result.push(seg)
+    }
   }
   return joinPath(result)
 }

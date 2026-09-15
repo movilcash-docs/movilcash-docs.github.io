@@ -151,7 +151,10 @@ export function PageEditor({
         ...prev,
         { id: created.id, name: created.name, mimeType: created.mimeType, modifiedTime: created.modifiedTime },
       ])
-      insertAtCursor(`![${file.name}](${file.name})`)
+      // Encode the URL portion — a raw filename with spaces or parens (e.g. a screenshot named
+      // "Captura realizada el 2026-09-15 17.47.10.png") would otherwise break markdown's
+      // `![alt](url)` syntax, which doesn't allow literal spaces/parens in an unbracketed URL.
+      insertAtCursor(`![${file.name}](${encodeURIComponent(file.name)})`)
     } catch (err) {
       setError((err as Error).message)
     } finally {

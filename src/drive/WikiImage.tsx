@@ -34,7 +34,18 @@ export function WikiImage({ src, alt, assets, accessToken }: WikiImageProps) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const relativeName = src ? decodeURIComponent(src.replace(/^\.\//, '')) : ''
+  // decodeURIComponent is a no-op on a name that was never encoded (e.g. plain spaces), and can
+  // only throw on a stray "%" not followed by a valid hex pair — fall back to the raw src then.
+  const relativeName = src
+    ? (() => {
+        const stripped = src.replace(/^\.\//, '')
+        try {
+          return decodeURIComponent(stripped)
+        } catch {
+          return stripped
+        }
+      })()
+    : ''
   const asset = assets.find((a) => a.name === relativeName)
 
   useEffect(() => {

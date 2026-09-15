@@ -8,3 +8,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+/** Build timestamp (UTC, YYYYMMDDHHmm), injected at build time — see vite.config.ts. */
+declare const __BUILD_ID__: string

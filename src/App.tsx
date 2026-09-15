@@ -373,7 +373,7 @@ function WikiExplorer({
           <div className="mb-4">
             <strong>{rootFolderName}</strong>
           </div>
-          <ScrollArea className="h-[calc(100svh-7rem)]">
+          <ScrollArea className="h-[calc(100svh-9rem)]">
             {favoriteIds.size > 0 && (
               <div className="mb-4">
                 <div className="text-muted-foreground mb-1 px-1.5 text-xs font-semibold uppercase">Favoritos</div>
@@ -420,6 +420,7 @@ function WikiExplorer({
               onDeleteSection={setSectionToDelete}
             />
           </ScrollArea>
+          <div className="text-muted-foreground mt-2 border-t pt-2 text-center text-xs">Build {__BUILD_ID__}</div>
         </aside>
         <section className="flex-1 overflow-y-auto p-8">
           {!selectedPage && !selectedNotebook && !selectedPdf && !selectedGoogleFile && !tree.indexPage && (

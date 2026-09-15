@@ -20,8 +20,11 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 const INITIAL_STATE: AuthState = { accessToken: null, user: null, isLoading: true, error: null }
 const TOKEN_LIFETIME_SECONDS = 3600
-// Cleared a bit before the real expiry so a stale token isn't used for a request that's mid-flight.
-const EXPIRY_MARGIN_MS = 60_000
+// Attempt a silent refresh this far ahead of the real expiry, instead of waiting for the token to
+// actually die — as long as the browser still has a live Google session, this keeps the tab logged
+// in indefinitely without the user noticing. Only falls back to the login screen if that silent
+// attempt itself fails (no session, third-party cookies blocked, unverified-app limits, etc.).
+const REFRESH_MARGIN_MS = 5 * 60_000
 
 // Access tokens are kept in localStorage (see tokenStorage.ts) so the session survives a page
 // refresh *and* closing the browser — not just re-running Google's auth flow, which can pop a
@@ -29,14 +32,23 @@ const EXPIRY_MARGIN_MS = 60_000
 // full Drive scope, which is our case) — for as long as the token itself is still valid.
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(INITIAL_STATE)
-  const expiryTimer = useRef<number | undefined>(undefined)
+  const refreshTimer = useRef<number | undefined>(undefined)
+  const applyTokenRef = useRef<(token: string, expiresInSeconds?: number) => Promise<void>>(undefined)
 
-  const scheduleExpiry = useCallback((expiresInMs: number) => {
-    window.clearTimeout(expiryTimer.current)
-    expiryTimer.current = window.setTimeout(() => {
-      clearStoredSession()
-      setState((s) => ({ ...s, accessToken: null, user: null }))
-    }, Math.max(expiresInMs - EXPIRY_MARGIN_MS, 0))
+  const scheduleRefresh = useCallback((expiresInMs: number) => {
+    window.clearTimeout(refreshTimer.current)
+    const delay = Math.max(expiresInMs - REFRESH_MARGIN_MS, 0)
+    refreshTimer.current = window.setTimeout(async () => {
+      try {
+        const token = await requestAccessToken({ prompt: 'none' })
+        await applyTokenRef.current?.(token)
+      } catch {
+        // Silent refresh failed (session gone, cookies blocked, etc.) — nothing left to do but
+        // show the login screen; a manual signIn() will pop the interactive consent flow.
+        clearStoredSession()
+        setState((s) => ({ ...s, accessToken: null, user: null }))
+      }
+    }, delay)
   }, [])
 
   const applyToken = useCallback(
@@ -45,10 +57,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState({ accessToken: token, user, isLoading: false, error: null })
       const expiresAt = Date.now() + expiresInSeconds * 1000
       writeStoredSession({ accessToken: token, expiresAt, user })
-      scheduleExpiry(expiresInSeconds * 1000)
+      scheduleRefresh(expiresInSeconds * 1000)
     },
-    [scheduleExpiry],
+    [scheduleRefresh],
   )
+
+  useEffect(() => {
+    applyTokenRef.current = applyToken
+  }, [applyToken])
 
   const signIn = useCallback(async () => {
     setState((s) => ({ ...s, isLoading: true, error: null }))
@@ -61,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applyToken])
 
   const signOut = useCallback(async () => {
-    window.clearTimeout(expiryTimer.current)
+    window.clearTimeout(refreshTimer.current)
     clearStoredSession()
     if (state.accessToken) {
       await revokeAccessToken(state.accessToken)
@@ -73,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const stored = readStoredSession()
     if (stored) {
       setState({ accessToken: stored.accessToken, user: stored.user, isLoading: false, error: null })
-      scheduleExpiry(stored.expiresAt - Date.now())
+      scheduleRefresh(stored.expiresAt - Date.now())
       return
     }
 

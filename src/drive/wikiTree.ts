@@ -10,6 +10,16 @@ export interface WikiPage {
   modifiedTime: string
 }
 
+export interface WikiNotebook {
+  type: 'notebook'
+  id: string
+  /** File name including the .ipynb extension. */
+  name: string
+  /** File name without the .ipynb extension. */
+  slug: string
+  modifiedTime: string
+}
+
 export interface WikiAsset {
   id: string
   name: string
@@ -24,8 +34,9 @@ export interface WikiSection {
   /** The section's index.md, if present — rendered when navigating to the section itself. */
   indexPage: WikiPage | null
   pages: WikiPage[]
+  notebooks: WikiNotebook[]
   sections: WikiSection[]
-  /** Non-.md, non-folder files in this section (images, etc.), for resolving relative links. */
+  /** Non-.md, non-.ipynb, non-folder files in this section (images, etc.), for resolving relative links. */
   assets: WikiAsset[]
 }
 
@@ -41,6 +52,16 @@ function toPage(file: DriveFile): WikiPage {
   }
 }
 
+function toNotebook(file: DriveFile): WikiNotebook {
+  return {
+    type: 'notebook',
+    id: file.id,
+    name: file.name,
+    slug: file.name.replace(/\.ipynb$/i, ''),
+    modifiedTime: file.modifiedTime,
+  }
+}
+
 export async function buildWikiTree(
   folderId: string,
   folderName: string,
@@ -50,10 +71,14 @@ export async function buildWikiTree(
 
   const folders = children.filter((f) => f.mimeType === FOLDER_MIME_TYPE)
   const mdFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && /\.md$/i.test(f.name))
-  const otherFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && !/\.md$/i.test(f.name))
+  const notebookFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && /\.ipynb$/i.test(f.name))
+  const otherFiles = children.filter(
+    (f) => f.mimeType !== FOLDER_MIME_TYPE && !/\.md$/i.test(f.name) && !/\.ipynb$/i.test(f.name),
+  )
 
   const indexFile = mdFiles.find((f) => f.name.toLowerCase() === INDEX_FILE_NAME)
   const pages = mdFiles.filter((f) => f !== indexFile).map(toPage)
+  const notebooks = notebookFiles.map(toNotebook)
 
   const sections = await Promise.all(
     folders.map((folder) => buildWikiTree(folder.id, folder.name, accessToken)),
@@ -65,6 +90,7 @@ export async function buildWikiTree(
     name: folderName,
     indexPage: indexFile ? toPage(indexFile) : null,
     pages,
+    notebooks,
     sections,
     assets: otherFiles.map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, modifiedTime: f.modifiedTime })),
   }

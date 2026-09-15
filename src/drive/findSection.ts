@@ -21,3 +21,18 @@ export function findSectionForPage(
   }
   return null
 }
+
+/** Finds the section that directly contains the given notebook (by id), searching the whole tree. */
+export function findSectionForNotebook(
+  section: WikiSection,
+  notebookId: string,
+  path: string[] = [],
+): SectionLocation | null {
+  if (section.notebooks.some((n) => n.id === notebookId)) return { section, path }
+
+  for (const child of section.sections) {
+    const found = findSectionForNotebook(child, notebookId, [...path, child.name])
+    if (found) return found
+  }
+  return null
+}

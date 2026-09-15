@@ -1,4 +1,4 @@
-import { ChevronRight, FilePlus, FolderPlus, Plus, Trash2 } from 'lucide-react'
+import { ChevronRight, FilePlus, FolderPlus, NotebookText, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from 'cn'
 import { Button } from '@/components/ui/button'
@@ -9,12 +9,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import type { WikiPage, WikiSection } from './wikiTree'
+import type { WikiNotebook, WikiPage, WikiSection } from './wikiTree'
 
 interface Props {
   section: WikiSection
   selectedPageId: string | null
+  selectedNotebookId: string | null
   onSelectPage: (page: WikiPage) => void
+  onSelectNotebook: (notebook: WikiNotebook) => void
   onSelectSection: (section: WikiSection) => void
   onCreatePage: (section: WikiSection) => void
   onCreateSection: (section: WikiSection) => void
@@ -25,14 +27,16 @@ interface Props {
 export function WikiTreeView({
   section,
   selectedPageId,
+  selectedNotebookId,
   onSelectPage,
+  onSelectNotebook,
   onSelectSection,
   onCreatePage,
   onCreateSection,
   onDeleteSection,
   depth = 0,
 }: Props) {
-  const hasChildren = section.pages.length > 0 || section.sections.length > 0
+  const hasChildren = section.pages.length > 0 || section.notebooks.length > 0 || section.sections.length > 0
   const [open, setOpen] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -116,12 +120,29 @@ export function WikiTreeView({
                 {page.slug}
               </Button>
             ))}
+            {section.notebooks.map((notebook) => (
+              <Button
+                key={notebook.id}
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  'justify-start gap-1.5 truncate',
+                  notebook.id === selectedNotebookId && 'bg-muted font-semibold',
+                )}
+                onClick={() => onSelectNotebook(notebook)}
+              >
+                <NotebookText className="size-3.5 shrink-0" />
+                {notebook.slug}
+              </Button>
+            ))}
             {section.sections.map((child) => (
               <WikiTreeView
                 key={child.id}
                 section={child}
                 selectedPageId={selectedPageId}
+                selectedNotebookId={selectedNotebookId}
                 onSelectPage={onSelectPage}
+                onSelectNotebook={onSelectNotebook}
                 onSelectSection={onSelectSection}
                 onCreatePage={onCreatePage}
                 onCreateSection={onCreateSection}

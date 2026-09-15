@@ -1,4 +1,4 @@
-import { MoreHorizontal, Share2, Star } from 'lucide-react'
+import { ExternalLink, MoreHorizontal, Share2, Star } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import { setPageContent } from './cache/pageCache'
@@ -26,19 +26,21 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from 'cn'
 import { createFile, createFolder, trashFile, updateFileContent } from './drive/driveApi'
-import { findSectionForPage } from './drive/findSection'
+import { findSectionForNotebook, findSectionForPage } from './drive/findSection'
 import { flattenPages } from './drive/flattenPages'
 import { MarkdownView } from './drive/MarkdownView'
+import { NotebookView } from './drive/NotebookView'
 import { PageEditor } from './drive/PageEditor'
 import { pickFolder } from './drive/pickFolder'
 import { useFavorites } from './drive/useFavorites'
+import { useNotebookContent } from './drive/useNotebookContent'
 import { useRootFolder } from './drive/RootFolderContext'
 import { usePageContent } from './drive/usePageContent'
 import { useWikiTree } from './drive/useWikiTree'
 import { VersionHistoryDialog } from './drive/VersionHistoryDialog'
 import { buildPathIndex } from './drive/wikiPathIndex'
 import { WikiTreeView } from './drive/WikiTreeView'
-import type { WikiPage, WikiSection } from './drive/wikiTree'
+import type { WikiNotebook, WikiPage, WikiSection } from './drive/wikiTree'
 
 function App() {
   const { isAuthenticated, isLoading, error, signIn, signOut, accessToken, user } = useAuth()
@@ -120,6 +122,7 @@ function WikiExplorer({
 }: WikiExplorerProps) {
   const { tree, isLoading, error, refresh } = useWikiTree(accessToken, rootFolderId, rootFolderName)
   const [selectedPage, setSelectedPage] = useState<WikiPage | null>(null)
+  const [selectedNotebook, setSelectedNotebook] = useState<WikiNotebook | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [activeSectionId, setActiveSectionId] = useState(rootFolderId)
   const [createPageOpen, setCreatePageOpen] = useState(false)
@@ -136,9 +139,19 @@ function WikiExplorer({
     error: pageError,
     errorReason: pageErrorReason,
   } = usePageContent(accessToken, selectedPage)
+  const {
+    notebook,
+    isLoading: isNotebookLoading,
+    error: notebookError,
+    errorReason: notebookErrorReason,
+  } = useNotebookContent(accessToken, selectedNotebook)
   const currentSection = useMemo(
     () => (tree && selectedPage ? findSectionForPage(tree, selectedPage.id) : null),
     [tree, selectedPage],
+  )
+  const currentNotebookSection = useMemo(
+    () => (tree && selectedNotebook ? findSectionForNotebook(tree, selectedNotebook.id) : null),
+    [tree, selectedNotebook],
   )
   const pathIndex = useMemo(() => (tree ? buildPathIndex(tree) : null), [tree])
 
@@ -168,11 +181,19 @@ function WikiExplorer({
 
   function selectPage(page: WikiPage | null) {
     setSelectedPage(page)
+    setSelectedNotebook(null)
+    setIsEditing(false)
+  }
+
+  function selectNotebook(notebook: WikiNotebook) {
+    setSelectedNotebook(notebook)
+    setSelectedPage(null)
     setIsEditing(false)
   }
 
   function selectSection(section: WikiSection) {
     setSelectedPage(null)
+    setSelectedNotebook(null)
     setIsEditing(false)
     setActiveSectionId(section.id)
   }
@@ -347,7 +368,9 @@ function WikiExplorer({
             <WikiTreeView
               section={tree}
               selectedPageId={selectedPage?.id ?? null}
+              selectedNotebookId={selectedNotebook?.id ?? null}
               onSelectPage={selectPage}
+              onSelectNotebook={selectNotebook}
               onSelectSection={selectSection}
               onCreatePage={(s) => {
                 setActiveSectionId(s.id)
@@ -362,13 +385,42 @@ function WikiExplorer({
           </ScrollArea>
         </aside>
         <section className="flex-1 overflow-y-auto p-8">
-          {!selectedPage && !tree.indexPage && (
+          {!selectedPage && !selectedNotebook && !tree.indexPage && (
             <p>
               No hay <code>index.md</code> en la raíz de "{rootFolderName}" — creá uno en Drive para que sea la
               portada de la wiki, o elegí una página del árbol de la izquierda.
             </p>
           )}
-          {!selectedPage && tree.indexPage && <p>Elegí una página del árbol de la izquierda.</p>}
+          {!selectedPage && !selectedNotebook && tree.indexPage && <p>Elegí una página del árbol de la izquierda.</p>}
+          {selectedNotebook && isNotebookLoading && <p>Cargando notebook…</p>}
+          {selectedNotebook && notebookError && (
+            <p className="text-destructive">
+              {notebookErrorReason === 'fileNotDownloadable'
+                ? `"${selectedNotebook.name}" es un notebook nativo de Colab (no un archivo .ipynb de texto). Convertilo a un archivo .ipynb real ("Archivo → Descargar → .ipynb" en Colab y volvé a subirlo) para que la wiki lo pueda leer.`
+                : `Error: ${notebookError}`}
+            </p>
+          )}
+          {selectedNotebook && notebook && accessToken && (
+            <article className="mx-auto max-w-3xl">
+              <div className="mb-6 flex items-center justify-between gap-4 print:hidden">
+                <div className="text-muted-foreground min-w-0 truncate text-sm">
+                  {rootFolderName}
+                  {currentNotebookSection && currentNotebookSection.path.length > 0 &&
+                    ` / ${currentNotebookSection.path.join(' / ')}`}
+                </div>
+                <Button variant="outline" size="sm" asChild>
+                  <a
+                    href={`https://colab.research.google.com/drive/${selectedNotebook.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink /> Abrir en Colab
+                  </a>
+                </Button>
+              </div>
+              <NotebookView notebook={notebook} accessToken={accessToken} />
+            </article>
+          )}
           {selectedPage && isPageLoading && <p>Cargando página…</p>}
           {selectedPage && pageError && (
             <p className="text-destructive">

@@ -75,7 +75,7 @@ export function MarkdownView({ content, assets, basePath, pathIndex, accessToken
             )
           }
 
-          return <span className="broken-link">{children}</span>
+          return <span className="text-muted-foreground cursor-not-allowed line-through">{children}</span>
         },
       }}
     >

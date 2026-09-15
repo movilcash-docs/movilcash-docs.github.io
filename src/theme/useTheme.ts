@@ -32,13 +32,11 @@ export function useTheme(): UseThemeResult {
 
   const theme = override ?? systemTheme
 
+  // Tailwind's dark variant here is configured as `&:is(.dark *)` (class strategy),
+  // so we keep the class in sync with the effective theme ourselves.
   useEffect(() => {
-    if (override) {
-      document.documentElement.setAttribute('data-theme', override)
-    } else {
-      document.documentElement.removeAttribute('data-theme')
-    }
-  }, [override])
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+  }, [theme])
 
   const toggleTheme = useCallback(() => {
     const next: Theme = theme === 'dark' ? 'light' : 'dark'

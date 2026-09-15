@@ -1,8 +1,24 @@
-import { useMemo, useState, type FocusEvent } from 'react'
+import { MoonIcon, SearchIcon, SettingsIcon, SunIcon } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import {
+  Command,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { flattenPages, type FlatPage } from '../drive/flattenPages'
 import type { WikiPage, WikiSection } from '../drive/wikiTree'
 import { useTheme } from '../theme/useTheme'
-import './TopBar.css'
 
 interface TopBarProps {
   tree: WikiSection | null
@@ -13,115 +29,92 @@ interface TopBarProps {
   onSignOut: () => void
 }
 
-function closesOnBlur(e: FocusEvent<HTMLDivElement>, close: () => void) {
-  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) close()
-}
-
 export function TopBar({ tree, onSelectPage, accountLabel, onRefresh, onChangeFolder, onSignOut }: TopBarProps) {
-  const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
   const { theme, toggleTheme } = useTheme()
 
   const allPages = useMemo<FlatPage[]>(() => (tree ? flattenPages(tree) : []), [tree])
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return []
-    return allPages.filter((fp) => fp.page.slug.toLowerCase().includes(q)).slice(0, 8)
-  }, [allPages, query])
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        setSearchOpen((open) => !open)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   function selectResult(fp: FlatPage) {
     onSelectPage(fp.page)
-    setQuery('')
     setSearchOpen(false)
   }
 
   return (
-    <header className="top-bar">
-      <div className="top-bar-brand">Movilcash Docs</div>
+    <header className="flex items-center gap-6 border-b px-4 py-2">
+      <span className="shrink-0 font-bold">Movilcash Docs</span>
 
-      <div className="top-bar-search" onBlur={(e) => closesOnBlur(e, () => setSearchOpen(false))}>
-        <input
-          type="search"
-          placeholder="Buscar páginas por nombre…"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value)
-            setSearchOpen(true)
-          }}
-          onFocus={() => setSearchOpen(true)}
-        />
-        {searchOpen && query.trim() !== '' && (
-          <ul className="top-bar-search-results">
-            {results.length === 0 && <li className="empty">Sin resultados</li>}
-            {results.map((fp) => (
-              <li key={fp.page.id}>
-                <button type="button" onClick={() => selectResult(fp)}>
-                  <span className="result-name">{fp.page.slug}</span>
-                  {fp.path.length > 0 && <span className="result-path">{fp.path.join(' / ')}</span>}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <Button
+        variant="outline"
+        className="text-muted-foreground mx-auto w-full max-w-md justify-start gap-2 font-normal"
+        onClick={() => setSearchOpen(true)}
+      >
+        <SearchIcon className="size-4" />
+        Buscar páginas por nombre…
+        <kbd className="bg-muted ml-auto rounded px-1.5 py-0.5 font-mono text-[0.7rem]">⌘K</kbd>
+      </Button>
 
-      <div className="top-bar-account" onBlur={(e) => closesOnBlur(e, () => setMenuOpen(false))}>
-        <button
-          type="button"
-          className="theme-toggle"
+      <CommandDialog open={searchOpen} onOpenChange={setSearchOpen} title="Buscar páginas" description="Buscar páginas por nombre">
+        <Command>
+          <CommandInput placeholder="Buscar páginas por nombre…" />
+          <CommandList>
+            <CommandEmpty>Sin resultados</CommandEmpty>
+            <CommandGroup>
+              {allPages.map((fp) => (
+                <CommandItem
+                  key={fp.page.id}
+                  value={`${fp.page.slug} ${fp.path.join(' ')}`}
+                  onSelect={() => selectResult(fp)}
+                >
+                  <div className="flex flex-col">
+                    <span>{fp.page.slug}</span>
+                    {fp.path.length > 0 && (
+                      <span className="text-muted-foreground text-xs">{fp.path.join(' / ')}</span>
+                    )}
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </CommandDialog>
+
+      <div className="flex shrink-0 items-center gap-2">
+        <Button
+          variant="outline"
+          size="icon"
           aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
           title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
           onClick={toggleTheme}
         >
-          {theme === 'dark' ? '☀' : '🌙'}
-        </button>
-        <span className="account-label">{accountLabel}</span>
-        <button
-          type="button"
-          className="gear-button"
-          aria-label="Opciones"
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          ⚙
-        </button>
-        {menuOpen && (
-          <ul className="top-bar-menu">
-            <li>
-              <button
-                type="button"
-                onClick={() => {
-                  onRefresh()
-                  setMenuOpen(false)
-                }}
-              >
-                Refrescar
-              </button>
-            </li>
-            <li>
-              <button
-                type="button"
-                onClick={() => {
-                  onChangeFolder()
-                  setMenuOpen(false)
-                }}
-              >
-                Cambiar carpeta
-              </button>
-            </li>
-            <li>
-              <button
-                type="button"
-                onClick={() => {
-                  onSignOut()
-                  setMenuOpen(false)
-                }}
-              >
-                Cerrar sesión
-              </button>
-            </li>
-          </ul>
-        )}
+          {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+        </Button>
+
+        <span className="text-muted-foreground max-w-[220px] truncate text-sm">{accountLabel}</span>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" aria-label="Opciones">
+              <SettingsIcon />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={onRefresh}>Refrescar</DropdownMenuItem>
+            <DropdownMenuItem onSelect={onChangeFolder}>Cambiar carpeta</DropdownMenuItem>
+            <DropdownMenuItem onSelect={onSignOut}>Cerrar sesión</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   )

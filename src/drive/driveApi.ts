@@ -73,3 +73,65 @@ export async function getFileText(fileId: string, accessToken: string): Promise<
   const blob = await getFileContent(fileId, accessToken)
   return blob.text()
 }
+
+const UPLOAD_ENDPOINT = 'https://www.googleapis.com/upload/drive/v3/files'
+const FILE_FIELDS = 'id,name,mimeType,modifiedTime'
+
+function buildMultipartBody(boundary: string, metadata: object, content: BlobPart, contentType: string): Blob {
+  return new Blob([
+    `--${boundary}\r\n`,
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n',
+    JSON.stringify(metadata),
+    `\r\n--${boundary}\r\n`,
+    `Content-Type: ${contentType}\r\n\r\n`,
+    content,
+    `\r\n--${boundary}--`,
+  ])
+}
+
+/** Creates a new file (a .md page or an image asset) with its content, in one request. */
+export async function createFile(
+  parentId: string,
+  name: string,
+  content: BlobPart,
+  contentType: string,
+  accessToken: string,
+): Promise<DriveFile> {
+  const boundary = `wiki-${Math.random().toString(36).slice(2)}`
+  const body = buildMultipartBody(boundary, { name, parents: [parentId] }, content, contentType)
+
+  const response = await driveFetch(
+    `${UPLOAD_ENDPOINT}?uploadType=multipart&fields=${FILE_FIELDS}`,
+    accessToken,
+    { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body },
+  )
+  return response.json()
+}
+
+export async function createFolder(parentId: string, name: string, accessToken: string): Promise<DriveFile> {
+  const response = await driveFetch(`${FILES_ENDPOINT}?fields=${FILE_FIELDS}`, accessToken, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, parents: [parentId], mimeType: FOLDER_MIME_TYPE }),
+  })
+  return response.json()
+}
+
+/** Replaces a page's markdown text, leaving its name/location untouched. */
+export async function updateFileContent(fileId: string, content: string, accessToken: string): Promise<DriveFile> {
+  const response = await driveFetch(
+    `${UPLOAD_ENDPOINT}/${fileId}?uploadType=media&fields=${FILE_FIELDS}`,
+    accessToken,
+    { method: 'PATCH', headers: { 'Content-Type': 'text/markdown' }, body: content },
+  )
+  return response.json()
+}
+
+/** Moves a file/folder to Drive's trash (recoverable), rather than a permanent delete. */
+export async function trashFile(fileId: string, accessToken: string): Promise<void> {
+  await driveFetch(`${FILES_ENDPOINT}/${fileId}`, accessToken, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trashed: true }),
+  })
+}

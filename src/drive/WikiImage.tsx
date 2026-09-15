@@ -47,15 +47,23 @@ export function WikiImage({ src, alt, assets, accessToken }: WikiImageProps) {
   }
 
   if (!asset) {
-    return <span className="broken-image">[imagen no encontrada: {relativeName || alt}]</span>
+    return (
+      <span className="text-muted-foreground inline-block text-sm italic">
+        [imagen no encontrada: {relativeName || alt}]
+      </span>
+    )
   }
 
   if (error) {
-    return <span className="broken-image">[error cargando {relativeName}: {error}]</span>
+    return (
+      <span className="text-muted-foreground inline-block text-sm italic">
+        [error cargando {relativeName}: {error}]
+      </span>
+    )
   }
 
   if (!objectUrl) {
-    return <span className="image-loading">Cargando imagen…</span>
+    return <span className="text-muted-foreground inline-block text-sm italic">Cargando imagen…</span>
   }
 
   // eslint-disable-next-line jsx-a11y/alt-text

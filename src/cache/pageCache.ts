@@ -13,3 +13,9 @@ export async function getPageContent(fileId: string, modifiedTime: string, acces
   await db.put('pages', { fileId, content, modifiedTime })
   return content
 }
+
+/** Writes a freshly-saved page straight into the cache, avoiding a redundant re-download. */
+export async function setPageContent(fileId: string, content: string, modifiedTime: string): Promise<void> {
+  const db = await getDb()
+  await db.put('pages', { fileId, content, modifiedTime })
+}

@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { requestAccessToken, revokeAccessToken } from './googleAuth'
+import { getUserInfo, requestAccessToken, revokeAccessToken, type GoogleUserInfo } from './googleAuth'
 
 interface AuthState {
   accessToken: string | null
+  user: GoogleUserInfo | null
   /** true while attempting the initial silent sign-in, or a manual sign-in */
   isLoading: boolean
   error: string | null
@@ -16,11 +17,13 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
+const INITIAL_STATE: AuthState = { accessToken: null, user: null, isLoading: true, error: null }
+
 // Access tokens for the `drive` scope are short-lived (~1h) and not persisted
 // across reloads for security; on mount we try a silent, no-popup grant that
 // succeeds only if the browser still has a live Google session/consent.
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({ accessToken: null, isLoading: true, error: null })
+  const [state, setState] = useState<AuthState>(INITIAL_STATE)
   const expiryTimer = useRef<number | undefined>(undefined)
 
   const scheduleExpiry = useCallback((expiresInSeconds: number) => {
@@ -28,42 +31,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Clear the token a bit early so a stale token isn't used for a request that's mid-flight.
     const marginMs = 60_000
     expiryTimer.current = window.setTimeout(
-      () => setState((s) => ({ ...s, accessToken: null })),
+      () => setState((s) => ({ ...s, accessToken: null, user: null })),
       Math.max(expiresInSeconds * 1000 - marginMs, 0),
     )
   }, [])
+
+  const applyToken = useCallback(
+    async (token: string) => {
+      const user = await getUserInfo(token).catch(() => null)
+      setState({ accessToken: token, user, isLoading: false, error: null })
+      scheduleExpiry(3600)
+    },
+    [scheduleExpiry],
+  )
 
   const signIn = useCallback(async () => {
     setState((s) => ({ ...s, isLoading: true, error: null }))
     try {
       const token = await requestAccessToken({ prompt: 'consent' })
-      setState({ accessToken: token, isLoading: false, error: null })
-      scheduleExpiry(3600)
+      await applyToken(token)
     } catch (err) {
-      setState({ accessToken: null, isLoading: false, error: (err as Error).message })
+      setState({ accessToken: null, user: null, isLoading: false, error: (err as Error).message })
     }
-  }, [scheduleExpiry])
+  }, [applyToken])
 
   const signOut = useCallback(async () => {
     window.clearTimeout(expiryTimer.current)
     if (state.accessToken) {
       await revokeAccessToken(state.accessToken)
     }
-    setState({ accessToken: null, isLoading: false, error: null })
+    setState({ accessToken: null, user: null, isLoading: false, error: null })
   }, [state.accessToken])
 
   useEffect(() => {
     let cancelled = false
     requestAccessToken({ prompt: 'none' })
-      .then((token) => {
+      .then(async (token) => {
         if (cancelled) return
-        setState({ accessToken: token, isLoading: false, error: null })
-        scheduleExpiry(3600)
+        await applyToken(token)
       })
       .catch(() => {
         if (cancelled) return
         // No prior session/consent — this is the normal state for a first visit.
-        setState({ accessToken: null, isLoading: false, error: null })
+        setState({ accessToken: null, user: null, isLoading: false, error: null })
       })
     return () => {
       cancelled = true

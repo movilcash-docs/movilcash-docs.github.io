@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
+import { TopBar } from './components/TopBar'
 import { pickFolder } from './drive/pickFolder'
 import { useRootFolder } from './drive/RootFolderContext'
 import { usePageContent } from './drive/usePageContent'
@@ -9,7 +10,7 @@ import type { WikiPage } from './drive/wikiTree'
 import './App.css'
 
 function App() {
-  const { isAuthenticated, isLoading, error, signIn, signOut, accessToken } = useAuth()
+  const { isAuthenticated, isLoading, error, signIn, signOut, accessToken, user } = useAuth()
   const { rootFolder, setRootFolder, clearRootFolder } = useRootFolder()
   const [pickerError, setPickerError] = useState<string | null>(null)
 
@@ -66,6 +67,7 @@ function App() {
       accessToken={accessToken}
       rootFolderId={rootFolder.id}
       rootFolderName={rootFolder.name}
+      accountLabel={user?.name ?? user?.email ?? ''}
       onChangeFolder={clearRootFolder}
       onSignOut={signOut}
     />
@@ -76,11 +78,19 @@ interface WikiExplorerProps {
   accessToken: string | null
   rootFolderId: string
   rootFolderName: string
+  accountLabel: string
   onChangeFolder: () => void
   onSignOut: () => void
 }
 
-function WikiExplorer({ accessToken, rootFolderId, rootFolderName, onChangeFolder, onSignOut }: WikiExplorerProps) {
+function WikiExplorer({
+  accessToken,
+  rootFolderId,
+  rootFolderName,
+  accountLabel,
+  onChangeFolder,
+  onSignOut,
+}: WikiExplorerProps) {
   const { tree, isLoading, error, refresh } = useWikiTree(accessToken, rootFolderId, rootFolderName)
   const [selectedPage, setSelectedPage] = useState<WikiPage | null>(null)
   const { content, isLoading: isPageLoading, error: pageError } = usePageContent(accessToken, selectedPage)
@@ -91,52 +101,60 @@ function WikiExplorer({ accessToken, rootFolderId, rootFolderName, onChangeFolde
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tree])
 
+  const topBar = (
+    <TopBar
+      tree={tree}
+      onSelectPage={setSelectedPage}
+      accountLabel={accountLabel}
+      onRefresh={refresh}
+      onChangeFolder={onChangeFolder}
+      onSignOut={onSignOut}
+    />
+  )
+
   if (isLoading) {
     return (
-      <main className="status-screen">
-        <p>Leyendo la estructura de "{rootFolderName}"…</p>
-      </main>
+      <div className="app-shell">
+        {topBar}
+        <main className="status-screen">
+          <p>Leyendo la estructura de "{rootFolderName}"…</p>
+        </main>
+      </div>
     )
   }
 
   if (error) {
     return (
-      <main className="status-screen">
-        <p className="error">Error leyendo Drive: {error}</p>
-        <div className="actions">
-          <button type="button" onClick={refresh}>
-            Reintentar
-          </button>
-          <button type="button" className="secondary" onClick={onChangeFolder}>
-            Cambiar carpeta
-          </button>
-        </div>
-      </main>
+      <div className="app-shell">
+        {topBar}
+        <main className="status-screen">
+          <p className="error">Error leyendo Drive: {error}</p>
+          <div className="actions">
+            <button type="button" onClick={refresh}>
+              Reintentar
+            </button>
+            <button type="button" className="secondary" onClick={onChangeFolder}>
+              Cambiar carpeta
+            </button>
+          </div>
+        </main>
+      </div>
     )
   }
 
   if (!tree) return null
 
   return (
-    <div className="wiki-layout">
-      <aside className="wiki-sidebar">
-        <div className="wiki-sidebar-header">
-          <strong>{rootFolderName}</strong>
-          <div className="actions">
-            <button type="button" onClick={refresh}>
-              Refrescar
-            </button>
-            <button type="button" onClick={onChangeFolder}>
-              Cambiar carpeta
-            </button>
-            <button type="button" className="secondary" onClick={onSignOut}>
-              Cerrar sesión
-            </button>
+    <div className="app-shell">
+      {topBar}
+      <div className="wiki-layout">
+        <aside className="wiki-sidebar">
+          <div className="wiki-sidebar-header">
+            <strong>{rootFolderName}</strong>
           </div>
-        </div>
-        <WikiTreeView section={tree} selectedPageId={selectedPage?.id ?? null} onSelectPage={setSelectedPage} />
-      </aside>
-      <section className="wiki-content">
+          <WikiTreeView section={tree} selectedPageId={selectedPage?.id ?? null} onSelectPage={setSelectedPage} />
+        </aside>
+        <section className="wiki-content">
         {!selectedPage && !tree.indexPage && (
           <p>
             No hay <code>index.md</code> en la raíz de "{rootFolderName}" — creá uno en Drive para que sea la
@@ -154,7 +172,8 @@ function WikiExplorer({ accessToken, rootFolderId, rootFolderName, onChangeFolde
             <pre className="raw-markdown">{content}</pre>
           </>
         )}
-      </section>
+        </section>
+      </div>
     </div>
   )
 }

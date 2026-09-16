@@ -51,6 +51,9 @@ import {
   updateFileContent,
 } from './drive/driveApi'
 import {
+  findGoogleFileById,
+  findNotebookById,
+  findPdfById,
   findSectionById,
   findSectionForGoogleFile,
   findSectionForNotebook,
@@ -60,6 +63,7 @@ import {
   sectionContains,
 } from './drive/findSection'
 import { flattenPages } from './drive/flattenPages'
+import { slugifyForUrl } from './drive/slugify'
 import { MarkdownView } from './drive/MarkdownView'
 import { NotebookView } from './drive/NotebookView'
 import { PageByline } from './drive/PageByline'
@@ -236,36 +240,66 @@ function WikiExplorer({
     [tree, viewedSection],
   )
   const pathIndex = useMemo(() => (tree ? buildPathIndex(tree) : null), [tree])
-  // The page id from a shared "#page=<id>" link, if any — kept until found (see effect below),
-  // since the first tree available can be an incomplete/stale IndexedDB cache that doesn't have
-  // it yet, and the fresh one arrives moments later via the background refetch.
-  const pendingHashPageId = useRef<string | null>(
+  // The item referenced by a shared "#page=<id>/<slug>" (or notebook/pdf/file) link, if any — kept
+  // until found (see effect below), since the first tree available can be an incomplete/stale
+  // IndexedDB cache that doesn't have it yet, and the fresh one arrives moments later via the
+  // background refetch. The trailing slug is purely cosmetic — only the id before the "/" resolves.
+  const pendingHash = useRef<{ kind: 'page' | 'notebook' | 'pdf' | 'file'; id: string } | null>(
     (() => {
-      const m = window.location.hash.match(/^#page=(.+)$/)
-      return m ? decodeURIComponent(m[1]) : null
+      const m = window.location.hash.match(/^#(page|notebook|pdf|file)=([^/]+)/)
+      if (!m) return null
+      try {
+        return { kind: m[1] as 'page' | 'notebook' | 'pdf' | 'file', id: decodeURIComponent(m[2]) }
+      } catch {
+        return null
+      }
     })(),
   )
   // True while the current selectedPage is just our own placeholder (the root index), not
   // something the user actually clicked — safe to replace once the real hash target shows up.
   const autoSelected = useRef(false)
 
-  // Landing view: restore a shared "#page=<id>" deep link if present, otherwise show the root
-  // section's index.md automatically (same as visiting "/" would). Re-checked on every tree
-  // update (not just once) until the hash target is actually found, since the first tree paint
-  // can come from an incomplete/stale cache — see the refs above.
+  // Landing view: restore a shared deep link if present, otherwise show the root section's
+  // index.md automatically (same as visiting "/" would). Re-checked on every tree update (not
+  // just once) until the hash target is actually found, since the first tree paint can come from
+  // an incomplete/stale cache — see the refs above.
   useEffect(() => {
     if (!tree || !pathIndex) return
     // Any of these means the user already navigated somewhere on their own — stop auto-restoring.
     if (selectedNotebook || selectedPdf || selectedGoogleFile || viewedSection) return
     if (selectedPage && !autoSelected.current) return
 
-    if (pendingHashPageId.current) {
-      const linkedPage = [...pathIndex.pages.values()].find((p) => p.id === pendingHashPageId.current)
-      if (linkedPage) {
-        setSelectedPage(linkedPage)
-        autoSelected.current = false
-        pendingHashPageId.current = null
-        return
+    if (pendingHash.current) {
+      const { kind, id } = pendingHash.current
+      if (kind === 'page') {
+        const linkedPage = [...pathIndex.pages.values()].find((p) => p.id === id)
+        if (linkedPage) {
+          setSelectedPage(linkedPage)
+          autoSelected.current = false
+          pendingHash.current = null
+          return
+        }
+      } else if (kind === 'notebook') {
+        const linkedNotebook = findNotebookById(tree, id)
+        if (linkedNotebook) {
+          setSelectedNotebook(linkedNotebook)
+          pendingHash.current = null
+          return
+        }
+      } else if (kind === 'pdf') {
+        const linkedPdf = findPdfById(tree, id)
+        if (linkedPdf) {
+          setSelectedPdf(linkedPdf)
+          pendingHash.current = null
+          return
+        }
+      } else if (kind === 'file') {
+        const linkedFile = findGoogleFileById(tree, id)
+        if (linkedFile) {
+          setSelectedGoogleFile(linkedFile)
+          pendingHash.current = null
+          return
+        }
       }
     }
     if (!selectedPage || autoSelected.current) {
@@ -274,12 +308,17 @@ function WikiExplorer({
     }
   }, [tree, pathIndex, selectedPage, selectedNotebook, selectedPdf, selectedGoogleFile, viewedSection])
 
-  // Keep the URL's hash pointing at whatever page is open, so "Compartir" has a real link to copy.
+  // Keep the URL's hash pointing at whatever's open, so "Compartir" has a real link to copy.
   useEffect(() => {
-    if (!selectedPage) return
-    const newHash = `#page=${encodeURIComponent(selectedPage.id)}`
-    if (window.location.hash !== newHash) window.history.replaceState(null, '', newHash)
-  }, [selectedPage])
+    let newHash: string | null = null
+    if (selectedPage) newHash = `#page=${encodeURIComponent(selectedPage.id)}/${slugifyForUrl(selectedPage.slug)}`
+    else if (selectedNotebook)
+      newHash = `#notebook=${encodeURIComponent(selectedNotebook.id)}/${slugifyForUrl(selectedNotebook.slug)}`
+    else if (selectedPdf) newHash = `#pdf=${encodeURIComponent(selectedPdf.id)}/${slugifyForUrl(selectedPdf.name)}`
+    else if (selectedGoogleFile)
+      newHash = `#file=${encodeURIComponent(selectedGoogleFile.id)}/${slugifyForUrl(selectedGoogleFile.name)}`
+    if (newHash && window.location.hash !== newHash) window.history.replaceState(null, '', newHash)
+  }, [selectedPage, selectedNotebook, selectedPdf, selectedGoogleFile])
 
   // "Where do new pages/sections go" follows whatever section the user is currently looking at.
   useEffect(() => {
@@ -417,8 +456,28 @@ function WikiExplorer({
   }
 
   async function handleShare() {
-    if (!selectedPage) return
-    const url = `${window.location.origin}${window.location.pathname}#page=${encodeURIComponent(selectedPage.id)}`
+    let kind: 'page' | 'notebook' | 'pdf' | 'file' | null = null
+    let id: string | null = null
+    let slug = ''
+    if (selectedPage) {
+      kind = 'page'
+      id = selectedPage.id
+      slug = selectedPage.slug
+    } else if (selectedNotebook) {
+      kind = 'notebook'
+      id = selectedNotebook.id
+      slug = selectedNotebook.slug
+    } else if (selectedPdf) {
+      kind = 'pdf'
+      id = selectedPdf.id
+      slug = selectedPdf.name
+    } else if (selectedGoogleFile) {
+      kind = 'file'
+      id = selectedGoogleFile.id
+      slug = selectedGoogleFile.name
+    }
+    if (!kind || !id) return
+    const url = `${window.location.origin}${window.location.pathname}#${kind}=${encodeURIComponent(id)}/${slugifyForUrl(slug)}`
     try {
       await navigator.clipboard.writeText(url)
       setShareCopied(true)
@@ -754,15 +813,21 @@ function WikiExplorer({
                   {currentNotebookSection && currentNotebookSection.path.length > 0 &&
                     ` / ${currentNotebookSection.path.join(' / ')}`}
                 </div>
-                <Button variant="outline" size="sm" asChild>
-                  <a
-                    href={`https://colab.research.google.com/drive/${selectedNotebook.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <ExternalLink /> Abrir en Colab
-                  </a>
-                </Button>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <Button variant="outline" size="sm" onClick={handleShare}>
+                    <Share2 />
+                    {shareCopied ? 'Copiado' : 'Compartir'}
+                  </Button>
+                  <Button variant="outline" size="sm" asChild>
+                    <a
+                      href={`https://colab.research.google.com/drive/${selectedNotebook.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink /> Abrir en Colab
+                    </a>
+                  </Button>
+                </div>
               </div>
               <NotebookView notebook={notebook} accessToken={accessToken} />
             </article>
@@ -782,6 +847,10 @@ function WikiExplorer({
                     onClick={() => toggleFavorite(selectedPdf.id)}
                   >
                     <Star className={cn('size-4', isFavorite(selectedPdf.id) && 'fill-yellow-500 text-yellow-500')} />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleShare}>
+                    <Share2 />
+                    {shareCopied ? 'Copiado' : 'Compartir'}
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -821,19 +890,25 @@ function WikiExplorer({
                 Este archivo no se renderiza dentro de la wiki — abrilo directamente en Google{' '}
                 {selectedGoogleFile.type === 'gsheet' ? 'Sheets' : 'Docs'}.
               </p>
-              <Button asChild>
-                <a
-                  href={
-                    selectedGoogleFile.type === 'gsheet'
-                      ? `https://docs.google.com/spreadsheets/d/${selectedGoogleFile.id}/edit`
-                      : `https://docs.google.com/document/d/${selectedGoogleFile.id}/edit`
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <ExternalLink /> Abrir en {selectedGoogleFile.type === 'gsheet' ? 'Sheets' : 'Docs'}
-                </a>
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={handleShare}>
+                  <Share2 />
+                  {shareCopied ? 'Copiado' : 'Compartir'}
+                </Button>
+                <Button asChild>
+                  <a
+                    href={
+                      selectedGoogleFile.type === 'gsheet'
+                        ? `https://docs.google.com/spreadsheets/d/${selectedGoogleFile.id}/edit`
+                        : `https://docs.google.com/document/d/${selectedGoogleFile.id}/edit`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink /> Abrir en {selectedGoogleFile.type === 'gsheet' ? 'Sheets' : 'Docs'}
+                  </a>
+                </Button>
+              </div>
             </article>
           )}
           {selectedPage && isPageLoading && <p>Cargando página…</p>}

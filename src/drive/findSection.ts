@@ -1,4 +1,4 @@
-import type { WikiSection } from './wikiTree'
+import type { WikiGoogleFile, WikiNotebook, WikiPdf, WikiSection } from './wikiTree'
 
 export interface SectionLocation {
   section: WikiSection
@@ -41,6 +41,24 @@ export function findSectionForPdf(section: WikiSection, pdfId: string): SectionL
 /** Finds the section that directly contains the given Google Doc/Sheet (by id), searching the whole tree. */
 export function findSectionForGoogleFile(section: WikiSection, fileId: string): SectionLocation | null {
   return findSectionContaining(section, (s) => (s.googleFiles ?? []).some((f) => f.id === fileId))
+}
+
+/** Finds a notebook anywhere in the tree by its own id — used to restore a shared deep link. */
+export function findNotebookById(root: WikiSection, notebookId: string): WikiNotebook | null {
+  const location = findSectionForNotebook(root, notebookId)
+  return location?.section.notebooks.find((n) => n.id === notebookId) ?? null
+}
+
+/** Finds a PDF anywhere in the tree by its own id — used to restore a shared deep link. */
+export function findPdfById(root: WikiSection, pdfId: string): WikiPdf | null {
+  const location = findSectionForPdf(root, pdfId)
+  return location?.section.pdfs.find((p) => p.id === pdfId) ?? null
+}
+
+/** Finds a Google Doc/Sheet anywhere in the tree by its own id — used to restore a shared deep link. */
+export function findGoogleFileById(root: WikiSection, fileId: string): WikiGoogleFile | null {
+  const location = findSectionForGoogleFile(root, fileId)
+  return location?.section.googleFiles.find((f) => f.id === fileId) ?? null
 }
 
 /** True if `sectionId` is `root` itself or one of its descendants — used to block dropping a section into itself. */

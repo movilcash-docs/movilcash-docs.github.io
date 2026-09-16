@@ -616,11 +616,11 @@ function WikiExplorer({
     <div className="flex min-h-svh flex-col">
       <div className="print:hidden">{topBar}</div>
       <div className="flex min-h-0 flex-1">
-        <aside className="w-70 shrink-0 border-r p-4 print:hidden">
-          <div className="mb-4">
+        <aside className="sticky top-0 flex h-svh w-70 shrink-0 flex-col border-r p-4 print:hidden">
+          <div className="mb-4 shrink-0">
             <strong>{rootFolderName}</strong>
           </div>
-          <ScrollArea className="h-[calc(100svh-9rem)]">
+          <ScrollArea className="min-h-0 flex-1">
             {favoriteIds.size > 0 && (
               <div className="mb-4">
                 <div className="text-muted-foreground mb-1 px-1.5 text-xs font-semibold uppercase">Favoritos</div>
@@ -670,7 +670,9 @@ function WikiExplorer({
               onRequestMove={handleRequestMove}
             />
           </ScrollArea>
-          <div className="text-muted-foreground mt-2 border-t pt-2 text-center text-xs">Build {__BUILD_ID__}</div>
+          <div className="text-muted-foreground mt-2 shrink-0 border-t pt-2 text-center text-xs">
+            Build {__BUILD_ID__}
+          </div>
         </aside>
         <section className="flex-1 overflow-y-auto p-8">
           {!selectedPage &&

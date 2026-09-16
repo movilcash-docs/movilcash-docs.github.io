@@ -138,4 +138,12 @@
   .prose blockquote {
     break-inside: avoid;
   }
+  /* Printing has no scrollbar to reveal the rest of a wide code block, so force it to wrap
+     instead of silently clipping whatever falls past the viewport's right edge. */
+  .prose pre,
+  .prose pre code {
+    overflow-x: visible;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
 }

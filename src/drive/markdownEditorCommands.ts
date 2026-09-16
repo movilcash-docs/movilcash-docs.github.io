@@ -167,3 +167,24 @@ export function outdentLines(sel: EditorSelection): EditorSelection {
 
   return { value: value2, selectionStart: Math.max(lineStart, start - firstLineRemoved), selectionEnd: end + delta }
 }
+
+const TASK_LINE = /^(\s*[-*+]\s+)\[([ xX])\](.*)$/
+
+/**
+ * Flips the Nth GFM checklist item (`- [ ]`/`- [x]`, 0-indexed in document order) to `checked`.
+ * Returns the content unchanged if there's no Nth checklist item.
+ */
+export function toggleTaskAtIndex(content: string, index: number, checked: boolean): string {
+  const lines = content.split('\n')
+  let seen = 0
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(TASK_LINE)
+    if (!match) continue
+    if (seen === index) {
+      lines[i] = `${match[1]}[${checked ? 'x' : ' '}]${match[3]}`
+      return lines.join('\n')
+    }
+    seen++
+  }
+  return content
+}

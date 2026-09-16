@@ -193,13 +193,28 @@ export interface DriveFileAuthorship {
   /** Drive files always have at least one owner; this is normally whoever created the file. */
   owners: { displayName?: string; emailAddress?: string }[]
   lastModifyingUser?: { displayName?: string; emailAddress?: string }
+  /** Custom key-value metadata Drive stores on the file itself — used for the edit-permission toggle. */
+  properties?: Record<string, string>
 }
 
 /** Who created a file and who last edited it, for the "Creado por / Última edición" byline. */
 export async function getFileAuthorship(fileId: string, accessToken: string): Promise<DriveFileAuthorship> {
   const response = await driveFetch(
-    `${FILES_ENDPOINT}/${fileId}?fields=createdTime,modifiedTime,owners(displayName,emailAddress),lastModifyingUser(displayName,emailAddress)`,
+    `${FILES_ENDPOINT}/${fileId}?fields=createdTime,modifiedTime,owners(displayName,emailAddress),lastModifyingUser(displayName,emailAddress),properties`,
     accessToken,
   )
   return response.json()
+}
+
+/** Merges the given key-value pairs into a file's custom `properties` (existing keys not listed are kept). */
+export async function setFileProperties(
+  fileId: string,
+  properties: Record<string, string>,
+  accessToken: string,
+): Promise<void> {
+  await driveFetch(`${FILES_ENDPOINT}/${fileId}`, accessToken, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ properties }),
+  })
 }

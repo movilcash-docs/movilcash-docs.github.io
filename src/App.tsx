@@ -3,6 +3,8 @@ import {
   FileSpreadsheet,
   FileText,
   Folder,
+  Lock,
+  LockOpen,
   MoreHorizontal,
   NotebookText,
   Pencil,
@@ -37,8 +39,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Switch } from '@/components/ui/switch'
 import { cn } from 'cn'
-import { createFile, createFolder, moveFile, renameFile, trashFile, updateFileContent } from './drive/driveApi'
+import {
+  createFile,
+  createFolder,
+  moveFile,
+  renameFile,
+  setFileProperties,
+  trashFile,
+  updateFileContent,
+} from './drive/driveApi'
 import {
   findSectionById,
   findSectionForGoogleFile,
@@ -64,6 +75,7 @@ import { useRootFolder } from './drive/RootFolderContext'
 import { usePageContent } from './drive/usePageContent'
 import { useWikiTree } from './drive/useWikiTree'
 import { VersionHistoryDialog } from './drive/VersionHistoryDialog'
+import { toggleTaskAtIndex } from './drive/markdownEditorCommands'
 import { buildPathIndex } from './drive/wikiPathIndex'
 import { WikiTreeView } from './drive/WikiTreeView'
 import type { TreeItemRef, WikiGoogleFile, WikiNotebook, WikiPage, WikiPdf, WikiSection } from './drive/wikiTree'
@@ -184,8 +196,19 @@ function WikiExplorer({
     error: pageError,
     errorReason: pageErrorReason,
   } = usePageContent(accessToken, selectedPage)
+  const [optimisticContent, setOptimisticContent] = useState<string | null>(null)
+  const [editPermissionOverride, setEditPermissionOverride] = useState<boolean | null>(null)
   const pageAuthorship = usePageAuthorship(accessToken, selectedPage?.id ?? null)
   const pageViews = usePageViewTracking(accessToken, rootFolderId, selectedPage?.id ?? null, viewer)
+
+  // Soft, convention-based gate — not real Drive-level access control (anyone with edit access to
+  // the underlying file could still bypass this via Drive directly). Missing the property at all
+  // (pages created before this feature, or never touched by the creator) defaults to "open", so we
+  // don't silently lock out editors who could edit a moment ago.
+  const isPageCreator =
+    !!viewer && !!pageAuthorship && pageAuthorship.owners.some((o) => o.emailAddress === viewer.email)
+  const editableByAnyone = editPermissionOverride ?? pageAuthorship?.properties?.editableByAnyone !== 'false'
+  const canEditPage = !pageAuthorship || isPageCreator || editableByAnyone
   const {
     notebook,
     isLoading: isNotebookLoading,
@@ -279,6 +302,8 @@ function WikiExplorer({
     setSelectedGoogleFile(null)
     setViewedSection(null)
     setIsEditing(false)
+    setOptimisticContent(null)
+    setEditPermissionOverride(null)
   }
 
   function selectNotebook(notebook: WikiNotebook) {
@@ -325,6 +350,32 @@ function WikiExplorer({
     setSelectedPage({ ...selectedPage, modifiedTime: updated.modifiedTime })
     setIsEditing(false)
     refresh()
+  }
+
+  async function handleToggleTask(index: number, checked: boolean) {
+    const base = optimisticContent ?? content
+    if (!base) return
+    const newContent = toggleTaskAtIndex(base, index, checked)
+    if (newContent === base) return
+    setOptimisticContent(newContent) // instant visual feedback while the save round-trips
+    try {
+      await handleSavePage(newContent)
+      setOptimisticContent(null) // real content will now match — usePageContent picks it up
+    } catch (err) {
+      setOptimisticContent(null)
+      window.alert((err as Error).message)
+    }
+  }
+
+  async function handleToggleEditPermission(next: boolean) {
+    if (!accessToken || !selectedPage) return
+    setEditPermissionOverride(next) // instant feedback
+    try {
+      await setFileProperties(selectedPage.id, { editableByAnyone: String(next) }, accessToken)
+    } catch (err) {
+      setEditPermissionOverride(!next)
+      window.alert((err as Error).message)
+    }
   }
 
   async function handleCreatePage(name: string) {
@@ -813,9 +864,11 @@ function WikiExplorer({
                     <Share2 />
                     {shareCopied ? 'Copiado' : 'Compartir'}
                   </Button>
-                  <Button size="sm" onClick={() => setIsEditing(true)}>
-                    Editar
-                  </Button>
+                  {canEditPage && (
+                    <Button size="sm" onClick={() => setIsEditing(true)}>
+                      Editar
+                    </Button>
+                  )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="icon" aria-label="Más opciones">
@@ -823,6 +876,26 @@ function WikiExplorer({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      {isPageCreator && (
+                        <>
+                          <div className="flex items-center justify-between gap-3 px-2 py-1.5 text-sm">
+                            <span className="flex items-center gap-1.5">
+                              {editableByAnyone ? (
+                                <LockOpen className="size-3.5" />
+                              ) : (
+                                <Lock className="size-3.5" />
+                              )}
+                              Permitir edición a cualquiera
+                            </span>
+                            <Switch
+                              checked={editableByAnyone}
+                              onCheckedChange={handleToggleEditPermission}
+                              aria-label="Permitir edición a cualquiera"
+                            />
+                          </div>
+                          <DropdownMenuSeparator />
+                        </>
+                      )}
                       <DropdownMenuItem onSelect={() => setHistoryOpen(true)}>Historial</DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => setDuplicateOpen(true)}>Hacer una copia</DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => window.print()}>Descargar PDF</DropdownMenuItem>
@@ -838,15 +911,18 @@ function WikiExplorer({
                 </div>
               </div>
               <PageByline authorship={pageAuthorship} />
-              <SeenBy views={pageViews} />
               <MarkdownView
-                content={content}
+                content={optimisticContent ?? content}
                 assets={currentSection?.section.assets ?? []}
                 basePath={currentSection?.path ?? []}
                 pathIndex={pathIndex}
                 accessToken={accessToken}
                 onSelectPage={selectPage}
+                onToggleTask={handleToggleTask}
               />
+              <footer className="mt-8 border-t pt-4 print:hidden">
+                <SeenBy views={pageViews} />
+              </footer>
             </article>
           )}
           {selectedPage && content !== null && accessToken && pathIndex && isEditing && (

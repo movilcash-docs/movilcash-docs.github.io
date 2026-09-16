@@ -6,6 +6,8 @@ export interface DriveFile {
   name: string
   mimeType: string
   modifiedTime: string
+  /** Only populated by calls that ask for it in their `fields` param (e.g. listChildren). */
+  createdTime?: string
 }
 
 export class DriveApiError extends Error {
@@ -49,7 +51,7 @@ export async function listChildren(folderId: string, accessToken: string): Promi
   do {
     const params = new URLSearchParams({
       q: `'${folderId}' in parents and trashed = false`,
-      fields: 'nextPageToken, files(id, name, mimeType, modifiedTime)',
+      fields: 'nextPageToken, files(id, name, mimeType, modifiedTime, createdTime)',
       pageSize: '1000',
     })
     if (pageToken) params.set('pageToken', pageToken)

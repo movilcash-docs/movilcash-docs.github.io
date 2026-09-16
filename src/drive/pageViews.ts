@@ -1,4 +1,13 @@
-import { createFile, createFolder, FOLDER_MIME_TYPE, getFileText, listChildren, updateFileContent } from './driveApi'
+import {
+  createFile,
+  createFolder,
+  FOLDER_MIME_TYPE,
+  getFileText,
+  listChildren,
+  trashFile,
+  updateFileContent,
+  type DriveFile,
+} from './driveApi'
 
 /** Internal folder (hidden from the wiki tree, see wikiTree.ts) holding one small JSON file per page. */
 const VIEWS_FOLDER_NAME = '.mc-docs-views'
@@ -12,12 +21,79 @@ export interface PageView {
 
 let viewsFolderIdCache: string | null = null
 
+/**
+ * Two people opening the wiki for the very first time around the same moment can each find no
+ * ".mc-docs-views" folder yet and both create one — Drive doesn't enforce unique names within a
+ * folder, so both calls succeed and the wiki ends up with two "seen by" folders that quietly
+ * diverge from then on (each viewer only ever writes to whichever one their client happened to
+ * see first). This folds every stray duplicate's logs into the oldest one (the most likely to
+ * already hold the longest history) and retires the strays, so everyone converges back onto a
+ * single source of truth instead of silently fragmenting further.
+ */
+async function mergeDuplicateViewsFolders(folders: DriveFile[], accessToken: string): Promise<string> {
+  const [canonical, ...duplicates] = [...folders].sort((a, b) =>
+    (a.createdTime ?? '').localeCompare(b.createdTime ?? ''),
+  )
+
+  for (const duplicate of duplicates) {
+    const strayFiles = await listChildren(duplicate.id, accessToken)
+    const canonicalFiles = await listChildren(canonical.id, accessToken)
+
+    for (const strayFile of strayFiles) {
+      try {
+        const strayViews = (JSON.parse(await getFileText(strayFile.id, accessToken)) as { views?: PageView[] })
+          .views ?? []
+        if (strayViews.length === 0) continue
+
+        const canonicalFile = canonicalFiles.find((f) => f.name === strayFile.name)
+        let views: PageView[] = []
+        if (canonicalFile) {
+          try {
+            views = (JSON.parse(await getFileText(canonicalFile.id, accessToken)) as { views?: PageView[] })
+              .views ?? []
+          } catch {
+            views = []
+          }
+        }
+
+        for (const strayView of strayViews) {
+          const idx = views.findIndex((v) => v.email === strayView.email)
+          if (idx === -1) views.push(strayView)
+          else if (strayView.viewedAt > views[idx].viewedAt) views[idx] = strayView
+        }
+
+        const content = JSON.stringify({ views })
+        if (canonicalFile) {
+          await updateFileContent(canonicalFile.id, content, accessToken, 'application/json')
+        } else {
+          await createFile(canonical.id, strayFile.name, content, 'application/json', accessToken)
+        }
+      } catch {
+        // Skip a stray file we can't read/merge — better to lose one page's merge than the whole cleanup.
+      }
+    }
+
+    await trashFile(duplicate.id, accessToken)
+  }
+
+  return canonical.id
+}
+
 async function getOrCreateViewsFolder(rootFolderId: string, accessToken: string): Promise<string> {
   if (viewsFolderIdCache) return viewsFolderIdCache
 
   const children = await listChildren(rootFolderId, accessToken)
-  const existing = children.find((f) => f.mimeType === FOLDER_MIME_TYPE && f.name === VIEWS_FOLDER_NAME)
-  const folderId = existing ? existing.id : (await createFolder(rootFolderId, VIEWS_FOLDER_NAME, accessToken)).id
+  const matches = children.filter((f) => f.mimeType === FOLDER_MIME_TYPE && f.name === VIEWS_FOLDER_NAME)
+
+  let folderId: string
+  if (matches.length === 0) {
+    folderId = (await createFolder(rootFolderId, VIEWS_FOLDER_NAME, accessToken)).id
+  } else if (matches.length === 1) {
+    folderId = matches[0].id
+  } else {
+    folderId = await mergeDuplicateViewsFolders(matches, accessToken)
+  }
+
   viewsFolderIdCache = folderId
   return folderId
 }

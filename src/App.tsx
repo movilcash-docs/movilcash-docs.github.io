@@ -11,6 +11,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import movilcashIcon from './assets/movilcash-icon.png'
 import { useAuth } from './auth/AuthContext'
 import { setPageContent } from './cache/pageCache'
 import { TopBar } from './components/TopBar'
@@ -94,6 +95,7 @@ function App() {
   if (!isAuthenticated) {
     return (
       <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-6 text-center">
+        <img src={movilcashIcon} alt="" className="size-12" />
         <h1 className="text-3xl font-semibold">MovilCash Docs</h1>
         <p>Iniciá sesión con tu cuenta de Google para acceder a la wiki.</p>
         {error && <p className="text-destructive">{error}</p>}

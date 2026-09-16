@@ -875,22 +875,23 @@ function WikiExplorer({
                         <MoreHorizontal />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent align="end" className="w-64">
                       {isPageCreator && (
                         <>
                           <div className="flex items-center justify-between gap-3 px-2 py-1.5 text-sm">
-                            <span className="flex items-center gap-1.5">
+                            <span className="flex min-w-0 items-center gap-1.5">
                               {editableByAnyone ? (
-                                <LockOpen className="size-3.5" />
+                                <LockOpen className="size-3.5 shrink-0" />
                               ) : (
-                                <Lock className="size-3.5" />
+                                <Lock className="size-3.5 shrink-0" />
                               )}
-                              Permitir edición a cualquiera
+                              <span>Permitir edición a cualquiera</span>
                             </span>
                             <Switch
                               checked={editableByAnyone}
                               onCheckedChange={handleToggleEditPermission}
                               aria-label="Permitir edición a cualquiera"
+                              className="shrink-0"
                             />
                           </div>
                           <DropdownMenuSeparator />

@@ -33,7 +33,7 @@ export function SeenBy({ views }: SeenByProps) {
     <>
       <button
         type="button"
-        className="text-muted-foreground hover:text-foreground mb-4 block text-xs underline-offset-2 hover:underline"
+        className="text-muted-foreground hover:text-foreground mb-4 block text-xs underline-offset-2 hover:underline print:hidden"
         onClick={() => setOpen(true)}
       >
         Visto por {shown.map(personLabel).join(', ')}

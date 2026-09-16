@@ -20,7 +20,7 @@ export function PageByline({ authorship }: PageBylineProps) {
   const sameEditAsCreation = authorship.createdTime === authorship.modifiedTime
 
   return (
-    <p className="text-muted-foreground mb-4 text-xs">
+    <p className="text-muted-foreground mb-4 text-xs print:hidden">
       {creator && (
         <>
           Creado por <span className="font-medium">{creator}</span> el {formatDate(authorship.createdTime)}

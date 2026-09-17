@@ -104,6 +104,13 @@ export function PdfExportOverlay({ html, title, onClose }: PdfExportOverlayProps
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Lets anyone confirm, straight from the browser console, that this exact lazy-loaded chunk
+  // (fetched separately from the main app bundle) is the version they think it is — matches the
+  // same __BUILD_ID__ shown in the sidebar footer.
+  useEffect(() => {
+    console.log(`[PdfExportOverlay] build ${__BUILD_ID__}`)
+  }, [])
+
   // Hides the normal app (sidebar, topbar, the live reading view) while printing, so only this
   // overlay's already-paginated pages end up on paper — see the `.pdf-exporting` rule in index.css.
   // Also forces light theme: Tailwind's dark variant matches any descendant of `.dark` on <html>,

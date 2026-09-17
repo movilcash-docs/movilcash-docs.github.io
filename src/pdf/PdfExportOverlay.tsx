@@ -144,6 +144,9 @@ export function PdfExportOverlay({ html, title, onClose }: PdfExportOverlayProps
         if (!cancelled) setReady(true)
       })
       .catch((err) => {
+        // Logged with the full error (stack included) so a failure can be diagnosed from the
+        // browser console alone — the on-screen message only has room for err.message.
+        console.error('[PdfExportOverlay] pagination failed', err)
         if (!cancelled) setError((err as Error).message)
       })
 

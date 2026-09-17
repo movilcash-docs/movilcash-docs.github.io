@@ -131,12 +131,39 @@
   }
 }
 
+@page {
+  margin: 1.5cm;
+}
+
 @media print {
+  /* Chrome drops background colors/fills by default unless the user has "Background graphics"
+     checked in the print dialog — force it so chart bars, table stripes and diagram fills
+     (mermaid, the rejection-cause bars) always show up regardless of that setting. */
+  html {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
   .prose img,
   .prose pre,
   .prose table,
-  .prose blockquote {
+  .prose blockquote,
+  .mermaid-diagram {
     break-inside: avoid;
+  }
+  /* A chart/diagram taller than the remaining space on the current page gets pushed whole to the
+     next one, leaving the rest of the current page blank — capping their height makes that gap
+     smaller and makes it more likely they fit in what's left instead of forcing a new page. */
+  .prose img,
+  .mermaid-diagram svg {
+    max-height: 16cm;
+  }
+  /* Keeps a heading from being stranded alone at the bottom of a page — no content directly under
+     it until the next page. */
+  .prose h1,
+  .prose h2,
+  .prose h3 {
+    break-after: avoid;
   }
   /* Printing has no scrollbar to reveal the rest of a wide code block, so force it to wrap
      instead of silently clipping whatever falls past the viewport's right edge. */

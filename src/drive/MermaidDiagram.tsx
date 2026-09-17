@@ -57,7 +57,7 @@ export function MermaidDiagram({ code }: MermaidDiagramProps) {
       <button
         type="button"
         aria-label="Ampliar diagrama"
-        className="absolute top-2 right-2 rounded-md bg-black/60 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/80"
+        className="absolute top-2 right-2 rounded-md bg-black/60 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/80 print:hidden"
         onClick={() => openLightbox({ kind: 'svg', markup: svg })}
       >
         <ZoomIn className="size-4" />

@@ -21,7 +21,7 @@ function ZoomableImage({ src, alt }: { src: string; alt: string }) {
       <button
         type="button"
         aria-label="Ampliar imagen"
-        className="absolute top-2 right-2 rounded-md bg-black/60 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/80"
+        className="absolute top-2 right-2 rounded-md bg-black/60 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/80 print:hidden"
         onClick={() => openLightbox({ kind: 'image', src, alt })}
       >
         <ZoomIn className="size-4" />

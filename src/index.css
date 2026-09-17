@@ -191,3 +191,10 @@
     padding: 0;
   }
 }
+
+/* The jsPDF/html2canvas export (exportWithHtml2Canvas.ts) screenshots a live DOM clone rather than
+   going through an actual print, so `@media print` rules like `print:hidden` never kick in on
+   their own — hide those elements unconditionally within the offscreen clone instead. */
+.pdf-capture-root [class~="print:hidden"] {
+  display: none !important;
+}

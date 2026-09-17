@@ -71,6 +71,7 @@ import { SeenBy } from './drive/SeenBy'
 import { PageEditor } from './drive/PageEditor'
 import { PdfView } from './drive/PdfView'
 import { pickFolder } from './drive/pickFolder'
+import { usePdfExportMethod, type PdfExportMethod } from './pdf/pdfExportMethod'
 // pagedjs is a sizeable library only needed when actually exporting a PDF, so it's kept out of
 // the main bundle and fetched on demand (same pattern as MermaidDiagram).
 const PdfExportOverlay = lazy(() => import('./pdf/PdfExportOverlay').then((m) => ({ default: m.PdfExportOverlay })))
@@ -197,6 +198,7 @@ function WikiExplorer({
   const [duplicateOpen, setDuplicateOpen] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
   const [pdfExportHtml, setPdfExportHtml] = useState<string | null>(null)
+  const [pdfExportMethod, setPdfExportMethod] = usePdfExportMethod()
   const articleRef = useRef<HTMLElement>(null)
   const { favoriteIds, isFavorite, toggleFavorite } = useFavorites(rootFolderId)
   const {
@@ -492,9 +494,23 @@ function WikiExplorer({
     }
   }
 
-  function handleExportPdf() {
-    if (!articleRef.current) return
-    setPdfExportHtml(articleRef.current.innerHTML)
+  async function handleExportPdf(method: PdfExportMethod) {
+    if (method === '1') {
+      window.print()
+      return
+    }
+    if (!articleRef.current || !selectedPage) return
+    const html = articleRef.current.innerHTML
+    if (method === '2') {
+      setPdfExportHtml(html)
+      return
+    }
+    try {
+      const { exportPdfWithHtml2Canvas } = await import('./pdf/exportWithHtml2Canvas')
+      await exportPdfWithHtml2Canvas(html, selectedPage.slug)
+    } catch (err) {
+      window.alert((err as Error).message)
+    }
   }
 
   async function handleCreateSection(name: string) {
@@ -589,6 +605,8 @@ function WikiExplorer({
       onRefresh={refresh}
       onChangeFolder={onChangeFolder}
       onSignOut={onSignOut}
+      pdfExportMethod={pdfExportMethod}
+      onChangePdfExportMethod={setPdfExportMethod}
     />
   )
 
@@ -986,7 +1004,9 @@ function WikiExplorer({
                       )}
                       <DropdownMenuItem onSelect={() => setHistoryOpen(true)}>Historial</DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => setDuplicateOpen(true)}>Hacer una copia</DropdownMenuItem>
-                      <DropdownMenuItem onSelect={handleExportPdf}>Descargar PDF</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => handleExportPdf(pdfExportMethod)}>
+                        Descargar PDF
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         variant="destructive"

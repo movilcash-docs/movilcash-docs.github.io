@@ -14,12 +14,19 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import movilcashIcon from '../assets/movilcash-icon.png'
 import { flattenPages, type FlatPage } from '../drive/flattenPages'
 import type { WikiPage, WikiSection } from '../drive/wikiTree'
 import { useTheme } from '../theme/useTheme'
+import type { PdfExportMethod } from '../pdf/pdfExportMethod'
 
 interface TopBarProps {
   tree: WikiSection | null
@@ -28,9 +35,20 @@ interface TopBarProps {
   onRefresh: () => void
   onChangeFolder: () => void
   onSignOut: () => void
+  pdfExportMethod: PdfExportMethod
+  onChangePdfExportMethod: (method: PdfExportMethod) => void
 }
 
-export function TopBar({ tree, onSelectPage, accountLabel, onRefresh, onChangeFolder, onSignOut }: TopBarProps) {
+export function TopBar({
+  tree,
+  onSelectPage,
+  accountLabel,
+  onRefresh,
+  onChangeFolder,
+  onSignOut,
+  pdfExportMethod,
+  onChangePdfExportMethod,
+}: TopBarProps) {
   const [searchOpen, setSearchOpen] = useState(false)
   const { theme, toggleTheme } = useTheme()
 
@@ -116,6 +134,21 @@ export function TopBar({ tree, onSelectPage, accountLabel, onRefresh, onChangeFo
           <DropdownMenuContent align="end">
             <DropdownMenuItem onSelect={onRefresh}>Refrescar</DropdownMenuItem>
             <DropdownMenuItem onSelect={onChangeFolder}>Cambiar carpeta</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>Método de exportación a PDF</DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup
+                  value={pdfExportMethod}
+                  onValueChange={(v) => onChangePdfExportMethod(v as PdfExportMethod)}
+                >
+                  <DropdownMenuRadioItem value="1">window.print()</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="2">Paged.js</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="3">jsPDF + html2canvas</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={onSignOut}>Cerrar sesión</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

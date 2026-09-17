@@ -43,7 +43,7 @@ function serializeRule(rule: CSSRule): string {
 // mangled result later blows up a `querySelectorAll` call deep inside Paged.js, aborting the whole
 // preview. Stripping the guard back to the plain selector loses `.not-prose` opting out *inside the
 // PDF preview specifically* (a rare, cosmetic-only edge case) in exchange for not crashing at all.
-const NOT_PROSE_GUARD = /:not\(:where\(\[class~=[^\]]*\],\[class~=[^\]]*\]\s*\*\)\)/g
+const NOT_PROSE_GUARD = /:not\(:where\(\[class~=[^\]]*\],\s*\[class~=[^\]]*\]\s*\*\)\)/g
 
 /**
  * Reads every CSS rule currently active on the page (Tailwind utilities, index.css, component

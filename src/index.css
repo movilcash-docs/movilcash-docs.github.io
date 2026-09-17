@@ -173,4 +173,21 @@
     white-space: pre-wrap;
     word-break: break-word;
   }
+
+  /* While the Paged.js export preview (PdfExportOverlay) is open, only its already-paginated
+     pages should print — hide the live app underneath and reset the overlay's own on-screen
+     chrome (backdrop, scroll container) back to normal document flow. */
+  body.pdf-exporting > #root {
+    display: none;
+  }
+  .pdf-preview-overlay {
+    position: static;
+    inset: auto;
+    background: none;
+  }
+  .pdf-preview-scroll {
+    overflow: visible;
+    background: none;
+    padding: 0;
+  }
 }

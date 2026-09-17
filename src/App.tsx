@@ -12,7 +12,7 @@ import {
   Star,
   Trash2,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import movilcashIcon from './assets/movilcash-icon.png'
 import { useAuth } from './auth/AuthContext'
 import { setPageContent } from './cache/pageCache'
@@ -71,6 +71,9 @@ import { SeenBy } from './drive/SeenBy'
 import { PageEditor } from './drive/PageEditor'
 import { PdfView } from './drive/PdfView'
 import { pickFolder } from './drive/pickFolder'
+// pagedjs is a sizeable library only needed when actually exporting a PDF, so it's kept out of
+// the main bundle and fetched on demand (same pattern as MermaidDiagram).
+const PdfExportOverlay = lazy(() => import('./pdf/PdfExportOverlay').then((m) => ({ default: m.PdfExportOverlay })))
 import { useFavorites } from './drive/useFavorites'
 import { useNotebookContent } from './drive/useNotebookContent'
 import { usePageAuthorship } from './drive/usePageAuthorship'
@@ -193,6 +196,8 @@ function WikiExplorer({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [duplicateOpen, setDuplicateOpen] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
+  const [pdfExportHtml, setPdfExportHtml] = useState<string | null>(null)
+  const articleRef = useRef<HTMLElement>(null)
   const { favoriteIds, isFavorite, toggleFavorite } = useFavorites(rootFolderId)
   const {
     content,
@@ -485,6 +490,11 @@ function WikiExplorer({
     } catch {
       window.prompt('Copiá el link:', url)
     }
+  }
+
+  function handleExportPdf() {
+    if (!articleRef.current) return
+    setPdfExportHtml(articleRef.current.innerHTML)
   }
 
   async function handleCreateSection(name: string) {
@@ -922,7 +932,7 @@ function WikiExplorer({
             </p>
           )}
           {selectedPage && content !== null && accessToken && pathIndex && !isEditing && (
-            <article className="prose dark:prose-invert mx-auto max-w-3xl">
+            <article ref={articleRef} className="prose dark:prose-invert mx-auto max-w-3xl">
               <div className="mb-6 flex items-center justify-between gap-4 print:hidden">
                 <div className="text-muted-foreground min-w-0 truncate text-sm">
                   {rootFolderName}
@@ -976,7 +986,7 @@ function WikiExplorer({
                       )}
                       <DropdownMenuItem onSelect={() => setHistoryOpen(true)}>Historial</DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => setDuplicateOpen(true)}>Hacer una copia</DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => window.print()}>Descargar PDF</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={handleExportPdf}>Descargar PDF</DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         variant="destructive"
@@ -1097,6 +1107,11 @@ function WikiExplorer({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {pdfExportHtml !== null && selectedPage && (
+        <Suspense fallback={null}>
+          <PdfExportOverlay html={pdfExportHtml} title={selectedPage.slug} onClose={() => setPdfExportHtml(null)} />
+        </Suspense>
+      )}
     </div>
   )
 }

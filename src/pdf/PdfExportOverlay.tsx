@@ -37,6 +37,14 @@ function serializeRule(rule: CSSRule): string {
   return rule.cssText
 }
 
+// @tailwindcss/typography wraps every single `.prose` rule's selector in this "opt out via
+// `.not-prose`" guard — a multi-argument `:not(:where(a, b))` (Selectors Level 4). Paged.js's
+// bundled css-tree can't parse it: it corrupts the selector instead of erroring cleanly, and the
+// mangled result later blows up a `querySelectorAll` call deep inside Paged.js, aborting the whole
+// preview. Stripping the guard back to the plain selector loses `.not-prose` opting out *inside the
+// PDF preview specifically* (a rare, cosmetic-only edge case) in exchange for not crashing at all.
+const NOT_PROSE_GUARD = /:not\(:where\(\[class~=[^\]]*\],\[class~=[^\]]*\]\s*\*\)\)/g
+
 /**
  * Reads every CSS rule currently active on the page (Tailwind utilities, index.css, component
  * styles) regardless of whether it got there via a `<link>` (production build) or an injected
@@ -54,7 +62,7 @@ function collectPageCss(): string {
       // Cross-origin stylesheet we can't read the rules of — nothing to do, skip it.
     }
   }
-  return css
+  return css.replace(NOT_PROSE_GUARD, '')
 }
 
 function escapeHtml(value: string): string {

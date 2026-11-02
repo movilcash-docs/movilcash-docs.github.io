@@ -1,5 +1,6 @@
 import {
   ChevronRight,
+  FileCode,
   FilePlus,
   FileSpreadsheet,
   FileText,
@@ -20,7 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import type { TreeItemRef, WikiGoogleFile, WikiNotebook, WikiPage, WikiPdf, WikiSection } from './wikiTree'
+import type { TreeItemRef, WikiGoogleFile, WikiHtml, WikiNotebook, WikiPage, WikiPdf, WikiSection } from './wikiTree'
 
 interface DragPayload extends TreeItemRef {
   sourceParentId: string
@@ -42,10 +43,12 @@ interface Props {
   selectedPageId: string | null
   selectedNotebookId: string | null
   selectedPdfId: string | null
+  selectedHtmlId: string | null
   selectedGoogleFileId: string | null
   onSelectPage: (page: WikiPage) => void
   onSelectNotebook: (notebook: WikiNotebook) => void
   onSelectPdf: (pdf: WikiPdf) => void
+  onSelectHtml: (html: WikiHtml) => void
   onSelectGoogleFile: (file: WikiGoogleFile) => void
   onSelectSection: (section: WikiSection) => void
   onCreatePage: (section: WikiSection) => void
@@ -63,10 +66,12 @@ export function WikiTreeView({
   selectedPageId,
   selectedNotebookId,
   selectedPdfId,
+  selectedHtmlId,
   selectedGoogleFileId,
   onSelectPage,
   onSelectNotebook,
   onSelectPdf,
+  onSelectHtml,
   onSelectGoogleFile,
   onSelectSection,
   onCreatePage,
@@ -80,11 +85,13 @@ export function WikiTreeView({
   // Defensive: these can be missing on a stale cached tree from before the field existed.
   const notebooks = section.notebooks ?? []
   const pdfs = section.pdfs ?? []
+  const htmlPages = section.htmlPages ?? []
   const googleFiles = section.googleFiles ?? []
   const hasChildren =
     section.pages.length > 0 ||
     notebooks.length > 0 ||
     pdfs.length > 0 ||
+    htmlPages.length > 0 ||
     googleFiles.length > 0 ||
     section.sections.length > 0
   // Only the wiki root starts expanded; everything else starts collapsed.
@@ -258,6 +265,20 @@ export function WikiTreeView({
                 {pdf.name}
               </TreeLeafItem>
             ))}
+            {htmlPages.map((html) => (
+              <TreeLeafItem
+                key={html.id}
+                item={{ kind: 'html', id: html.id, label: html.slug }}
+                sourceParentId={section.id}
+                selected={html.id === selectedHtmlId}
+                onSelect={() => onSelectHtml(html)}
+                onRenameItem={onRenameItem}
+                onDeleteItem={onDeleteItem}
+              >
+                <FileCode className="size-3.5 shrink-0 text-orange-500" />
+                {html.slug}
+              </TreeLeafItem>
+            ))}
             {googleFiles.map((file) => (
               <TreeLeafItem
                 key={file.id}
@@ -284,10 +305,12 @@ export function WikiTreeView({
                 selectedPageId={selectedPageId}
                 selectedNotebookId={selectedNotebookId}
                 selectedPdfId={selectedPdfId}
+                selectedHtmlId={selectedHtmlId}
                 selectedGoogleFileId={selectedGoogleFileId}
                 onSelectPage={onSelectPage}
                 onSelectNotebook={onSelectNotebook}
                 onSelectPdf={onSelectPdf}
+                onSelectHtml={onSelectHtml}
                 onSelectGoogleFile={onSelectGoogleFile}
                 onSelectSection={onSelectSection}
                 onCreatePage={onCreatePage}

@@ -1,5 +1,6 @@
 import {
   ExternalLink,
+  FileCode,
   FileSpreadsheet,
   FileText,
   Folder,
@@ -52,10 +53,12 @@ import {
 } from './drive/driveApi'
 import {
   findGoogleFileById,
+  findHtmlById,
   findNotebookById,
   findPdfById,
   findSectionById,
   findSectionForGoogleFile,
+  findSectionForHtml,
   findSectionForNotebook,
   findSectionForPage,
   findSectionForPdf,
@@ -70,6 +73,7 @@ import { PageByline } from './drive/PageByline'
 import { SeenBy } from './drive/SeenBy'
 import { PageEditor } from './drive/PageEditor'
 import { PdfView } from './drive/PdfView'
+import { HtmlView } from './drive/HtmlView'
 import { pickFolder } from './drive/pickFolder'
 import { usePdfExportMethod, type PdfExportMethod } from './pdf/pdfExportMethod'
 // pagedjs is a sizeable library only needed when actually exporting a PDF, so it's kept out of
@@ -86,7 +90,7 @@ import { VersionHistoryDialog } from './drive/VersionHistoryDialog'
 import { toggleTaskAtIndex } from './drive/markdownEditorCommands'
 import { buildPathIndex } from './drive/wikiPathIndex'
 import { WikiTreeView } from './drive/WikiTreeView'
-import type { TreeItemRef, WikiGoogleFile, WikiNotebook, WikiPage, WikiPdf, WikiSection } from './drive/wikiTree'
+import type { TreeItemRef, WikiGoogleFile, WikiHtml, WikiNotebook, WikiPage, WikiPdf, WikiSection } from './drive/wikiTree'
 
 function App() {
   const { isAuthenticated, isLoading, error, signIn, signOut, accessToken, user } = useAuth()
@@ -180,6 +184,7 @@ function WikiExplorer({
   const [selectedPage, setSelectedPage] = useState<WikiPage | null>(null)
   const [selectedNotebook, setSelectedNotebook] = useState<WikiNotebook | null>(null)
   const [selectedPdf, setSelectedPdf] = useState<WikiPdf | null>(null)
+  const [selectedHtml, setSelectedHtml] = useState<WikiHtml | null>(null)
   const [selectedGoogleFile, setSelectedGoogleFile] = useState<WikiGoogleFile | null>(null)
   const [viewedSection, setViewedSection] = useState<WikiSection | null>(null)
   const [isEditing, setIsEditing] = useState(false)
@@ -238,6 +243,10 @@ function WikiExplorer({
     () => (tree && selectedPdf ? findSectionForPdf(tree, selectedPdf.id) : null),
     [tree, selectedPdf],
   )
+  const currentHtmlSection = useMemo(
+    () => (tree && selectedHtml ? findSectionForHtml(tree, selectedHtml.id) : null),
+    [tree, selectedHtml],
+  )
   const currentGoogleFileSection = useMemo(
     () => (tree && selectedGoogleFile ? findSectionForGoogleFile(tree, selectedGoogleFile.id) : null),
     [tree, selectedGoogleFile],
@@ -251,12 +260,12 @@ function WikiExplorer({
   // until found (see effect below), since the first tree available can be an incomplete/stale
   // IndexedDB cache that doesn't have it yet, and the fresh one arrives moments later via the
   // background refetch. The trailing slug is purely cosmetic — only the id before the "/" resolves.
-  const pendingHash = useRef<{ kind: 'page' | 'notebook' | 'pdf' | 'file'; id: string } | null>(
+  const pendingHash = useRef<{ kind: 'page' | 'notebook' | 'pdf' | 'html' | 'file'; id: string } | null>(
     (() => {
-      const m = window.location.hash.match(/^#(page|notebook|pdf|file)=([^/]+)/)
+      const m = window.location.hash.match(/^#(page|notebook|pdf|html|file)=([^/]+)/)
       if (!m) return null
       try {
-        return { kind: m[1] as 'page' | 'notebook' | 'pdf' | 'file', id: decodeURIComponent(m[2]) }
+        return { kind: m[1] as 'page' | 'notebook' | 'pdf' | 'html' | 'file', id: decodeURIComponent(m[2]) }
       } catch {
         return null
       }
@@ -273,7 +282,7 @@ function WikiExplorer({
   useEffect(() => {
     if (!tree || !pathIndex) return
     // Any of these means the user already navigated somewhere on their own — stop auto-restoring.
-    if (selectedNotebook || selectedPdf || selectedGoogleFile || viewedSection) return
+    if (selectedNotebook || selectedPdf || selectedHtml || selectedGoogleFile || viewedSection) return
     if (selectedPage && !autoSelected.current) return
 
     if (pendingHash.current) {
@@ -300,6 +309,13 @@ function WikiExplorer({
           pendingHash.current = null
           return
         }
+      } else if (kind === 'html') {
+        const linkedHtml = findHtmlById(tree, id)
+        if (linkedHtml) {
+          setSelectedHtml(linkedHtml)
+          pendingHash.current = null
+          return
+        }
       } else if (kind === 'file') {
         const linkedFile = findGoogleFileById(tree, id)
         if (linkedFile) {
@@ -313,7 +329,7 @@ function WikiExplorer({
       setSelectedPage(tree.indexPage ?? null)
       autoSelected.current = true
     }
-  }, [tree, pathIndex, selectedPage, selectedNotebook, selectedPdf, selectedGoogleFile, viewedSection])
+  }, [tree, pathIndex, selectedPage, selectedNotebook, selectedPdf, selectedHtml, selectedGoogleFile, viewedSection])
 
   // Keep the URL's hash pointing at whatever's open, so "Compartir" has a real link to copy.
   useEffect(() => {
@@ -322,10 +338,11 @@ function WikiExplorer({
     else if (selectedNotebook)
       newHash = `#notebook=${encodeURIComponent(selectedNotebook.id)}/${slugifyForUrl(selectedNotebook.slug)}`
     else if (selectedPdf) newHash = `#pdf=${encodeURIComponent(selectedPdf.id)}/${slugifyForUrl(selectedPdf.name)}`
+    else if (selectedHtml) newHash = `#html=${encodeURIComponent(selectedHtml.id)}/${slugifyForUrl(selectedHtml.slug)}`
     else if (selectedGoogleFile)
       newHash = `#file=${encodeURIComponent(selectedGoogleFile.id)}/${slugifyForUrl(selectedGoogleFile.name)}`
     if (newHash && window.location.hash !== newHash) window.history.replaceState(null, '', newHash)
-  }, [selectedPage, selectedNotebook, selectedPdf, selectedGoogleFile])
+  }, [selectedPage, selectedNotebook, selectedPdf, selectedHtml, selectedGoogleFile])
 
   // "Where do new pages/sections go" follows whatever section the user is currently looking at.
   useEffect(() => {
@@ -345,6 +362,7 @@ function WikiExplorer({
     setSelectedPage(page)
     setSelectedNotebook(null)
     setSelectedPdf(null)
+    setSelectedHtml(null)
     setSelectedGoogleFile(null)
     setViewedSection(null)
     setIsEditing(false)
@@ -356,6 +374,7 @@ function WikiExplorer({
     setSelectedNotebook(notebook)
     setSelectedPage(null)
     setSelectedPdf(null)
+    setSelectedHtml(null)
     setSelectedGoogleFile(null)
     setViewedSection(null)
     setIsEditing(false)
@@ -365,6 +384,17 @@ function WikiExplorer({
     setSelectedPdf(pdf)
     setSelectedPage(null)
     setSelectedNotebook(null)
+    setSelectedHtml(null)
+    setSelectedGoogleFile(null)
+    setViewedSection(null)
+    setIsEditing(false)
+  }
+
+  function selectHtml(html: WikiHtml) {
+    setSelectedHtml(html)
+    setSelectedPage(null)
+    setSelectedNotebook(null)
+    setSelectedPdf(null)
     setSelectedGoogleFile(null)
     setViewedSection(null)
     setIsEditing(false)
@@ -375,6 +405,7 @@ function WikiExplorer({
     setSelectedPage(null)
     setSelectedNotebook(null)
     setSelectedPdf(null)
+    setSelectedHtml(null)
     setViewedSection(null)
     setIsEditing(false)
   }
@@ -383,6 +414,7 @@ function WikiExplorer({
     setSelectedPage(null)
     setSelectedNotebook(null)
     setSelectedPdf(null)
+    setSelectedHtml(null)
     setSelectedGoogleFile(null)
     setViewedSection(section)
     setIsEditing(false)
@@ -463,7 +495,7 @@ function WikiExplorer({
   }
 
   async function handleShare() {
-    let kind: 'page' | 'notebook' | 'pdf' | 'file' | null = null
+    let kind: 'page' | 'notebook' | 'pdf' | 'html' | 'file' | null = null
     let id: string | null = null
     let slug = ''
     if (selectedPage) {
@@ -478,6 +510,10 @@ function WikiExplorer({
       kind = 'pdf'
       id = selectedPdf.id
       slug = selectedPdf.name
+    } else if (selectedHtml) {
+      kind = 'html'
+      id = selectedHtml.id
+      slug = selectedHtml.slug
     } else if (selectedGoogleFile) {
       kind = 'file'
       id = selectedGoogleFile.id
@@ -530,6 +566,7 @@ function WikiExplorer({
       if (selectedPage?.id === deleteTarget.id) selectPage(null)
       if (selectedNotebook?.id === deleteTarget.id) setSelectedNotebook(null)
       if (selectedPdf?.id === deleteTarget.id) setSelectedPdf(null)
+      if (selectedHtml?.id === deleteTarget.id) setSelectedHtml(null)
       if (selectedGoogleFile?.id === deleteTarget.id) setSelectedGoogleFile(null)
       setDeleteTarget(null)
       refresh()
@@ -565,7 +602,11 @@ function WikiExplorer({
           ? newLabel.toLowerCase().endsWith('.ipynb')
             ? newLabel
             : `${newLabel}.ipynb`
-          : newLabel
+          : renameTarget.kind === 'html'
+            ? /\.html?$/i.test(newLabel)
+              ? newLabel
+              : `${newLabel}.html`
+            : newLabel
     try {
       await renameFile(renameTarget.id, finalName, accessToken)
       refresh()
@@ -678,10 +719,12 @@ function WikiExplorer({
               selectedPageId={selectedPage?.id ?? null}
               selectedNotebookId={selectedNotebook?.id ?? null}
               selectedPdfId={selectedPdf?.id ?? null}
+              selectedHtmlId={selectedHtml?.id ?? null}
               selectedGoogleFileId={selectedGoogleFile?.id ?? null}
               onSelectPage={selectPage}
               onSelectNotebook={selectNotebook}
               onSelectPdf={selectPdf}
+              onSelectHtml={selectHtml}
               onSelectGoogleFile={selectGoogleFile}
               onSelectSection={selectSection}
               onCreatePage={(s) => {
@@ -706,6 +749,7 @@ function WikiExplorer({
           {!selectedPage &&
             !selectedNotebook &&
             !selectedPdf &&
+            !selectedHtml &&
             !selectedGoogleFile &&
             !viewedSection &&
             !tree.indexPage && (
@@ -714,13 +758,18 @@ function WikiExplorer({
                 portada de la wiki, o elegí una página del árbol de la izquierda.
               </p>
             )}
-          {!selectedPage && !selectedNotebook && !selectedPdf && !selectedGoogleFile && !viewedSection && tree.indexPage && (
-            <p>Elegí una página del árbol de la izquierda.</p>
-          )}
+          {!selectedPage &&
+            !selectedNotebook &&
+            !selectedPdf &&
+            !selectedHtml &&
+            !selectedGoogleFile &&
+            !viewedSection &&
+            tree.indexPage && <p>Elegí una página del árbol de la izquierda.</p>}
           {viewedSection &&
             !selectedPage &&
             !selectedNotebook &&
             !selectedPdf &&
+            !selectedHtml &&
             !selectedGoogleFile &&
             (() => {
               const vs = viewedSection
@@ -729,6 +778,7 @@ function WikiExplorer({
                 vs.pages.length > 0 ||
                 (vs.notebooks ?? []).length > 0 ||
                 (vs.pdfs ?? []).length > 0 ||
+                (vs.htmlPages ?? []).length > 0 ||
                 (vs.googleFiles ?? []).length > 0
               return (
                 <article className="mx-auto max-w-3xl">
@@ -804,6 +854,14 @@ function WikiExplorer({
                         <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => selectPdf(pdf)}>
                           <FileText className="size-4 shrink-0 text-red-500" />
                           {pdf.name}
+                        </Button>
+                      </li>
+                    ))}
+                    {(vs.htmlPages ?? []).map((html) => (
+                      <li key={html.id}>
+                        <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => selectHtml(html)}>
+                          <FileCode className="size-4 shrink-0 text-orange-500" />
+                          {html.slug}
                         </Button>
                       </li>
                     ))}
@@ -900,6 +958,48 @@ function WikiExplorer({
                 </div>
               </div>
               <PdfView pdf={selectedPdf} accessToken={accessToken} />
+            </article>
+          )}
+          {selectedHtml && accessToken && (
+            <article className="mx-auto max-w-4xl">
+              <div className="mb-6 flex items-center justify-between gap-4 print:hidden">
+                <div className="text-muted-foreground min-w-0 truncate text-sm">
+                  {rootFolderName}
+                  {currentHtmlSection &&
+                    currentHtmlSection.path.length > 0 &&
+                    ` / ${currentHtmlSection.path.join(' / ')}`}
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={isFavorite(selectedHtml.id) ? 'Quitar de favoritos' : 'Marcar como favorito'}
+                    onClick={() => toggleFavorite(selectedHtml.id)}
+                  >
+                    <Star className={cn('size-4', isFavorite(selectedHtml.id) && 'fill-yellow-500 text-yellow-500')} />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleShare}>
+                    <Share2 />
+                    {shareCopied ? 'Copiado' : 'Compartir'}
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="icon" aria-label="Más opciones">
+                        <MoreHorizontal />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onSelect={() => setDeleteTarget({ id: selectedHtml.id, label: selectedHtml.name })}
+                      >
+                        Eliminar
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+              <HtmlView html={selectedHtml} accessToken={accessToken} />
             </article>
           )}
           {selectedGoogleFile && (

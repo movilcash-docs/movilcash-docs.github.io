@@ -35,6 +35,16 @@ export interface WikiPdf {
   modifiedTime: string
 }
 
+export interface WikiHtml {
+  type: 'html'
+  id: string
+  /** File name including the .html extension. */
+  name: string
+  /** File name without the .html/.htm extension, used for routing. */
+  slug: string
+  modifiedTime: string
+}
+
 export interface WikiGoogleFile {
   type: 'gdoc' | 'gsheet'
   id: string
@@ -58,6 +68,7 @@ export interface WikiSection {
   pages: WikiPage[]
   notebooks: WikiNotebook[]
   pdfs: WikiPdf[]
+  htmlPages: WikiHtml[]
   googleFiles: WikiGoogleFile[]
   sections: WikiSection[]
   /** Everything else in this section (images, etc.), for resolving relative links from markdown. */
@@ -66,9 +77,9 @@ export interface WikiSection {
 
 /** A tree item being renamed, moved, or deleted from the sidebar — enough info for the UI + API calls. */
 export interface TreeItemRef {
-  kind: 'section' | 'page' | 'notebook' | 'pdf' | 'gdoc' | 'gsheet'
+  kind: 'section' | 'page' | 'notebook' | 'pdf' | 'html' | 'gdoc' | 'gsheet'
   id: string
-  /** Extension-less for pages/notebooks (so the rename prompt doesn't make you retype ".md"), full name otherwise. */
+  /** Extension-less for pages/notebooks/html (so the rename prompt doesn't make you retype the extension), full name otherwise. */
   label: string
 }
 
@@ -98,6 +109,16 @@ function toNotebook(file: DriveFile): WikiNotebook {
   }
 }
 
+function toHtml(file: DriveFile): WikiHtml {
+  return {
+    type: 'html',
+    id: file.id,
+    name: file.name,
+    slug: file.name.replace(/\.html?$/i, ''),
+    modifiedTime: file.modifiedTime,
+  }
+}
+
 export async function buildWikiTree(
   folderId: string,
   folderName: string,
@@ -112,15 +133,17 @@ export async function buildWikiTree(
   )
   const mdFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && /\.md$/i.test(f.name))
   const notebookFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && /\.ipynb$/i.test(f.name))
+  const htmlFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && /\.html?$/i.test(f.name))
   const pdfFiles = children.filter((f) => f.mimeType === PDF_MIME_TYPE)
   const googleDocFiles = children.filter((f) => f.mimeType === GOOGLE_DOC_MIME_TYPE || f.mimeType === DOCX_MIME_TYPE)
   const googleSheetFiles = children.filter((f) => f.mimeType === GOOGLE_SHEET_MIME_TYPE || f.mimeType === XLSX_MIME_TYPE)
-  const classified = new Set([...mdFiles, ...notebookFiles, ...pdfFiles, ...googleDocFiles, ...googleSheetFiles])
+  const classified = new Set([...mdFiles, ...notebookFiles, ...htmlFiles, ...pdfFiles, ...googleDocFiles, ...googleSheetFiles])
   const otherFiles = children.filter((f) => f.mimeType !== FOLDER_MIME_TYPE && !classified.has(f))
 
   const indexFile = mdFiles.find((f) => f.name.toLowerCase() === INDEX_FILE_NAME)
   const pages = sortByName(mdFiles.filter((f) => f !== indexFile).map(toPage), (p) => p.slug)
   const notebooks = sortByName(notebookFiles.map(toNotebook), (n) => n.slug)
+  const htmlPages = sortByName(htmlFiles.map(toHtml), (h) => h.slug)
   const pdfs = sortByName(
     pdfFiles.map((f) => ({ type: 'pdf' as const, id: f.id, name: f.name, modifiedTime: f.modifiedTime })),
     (p) => p.name,
@@ -145,6 +168,7 @@ export async function buildWikiTree(
     pages,
     notebooks,
     pdfs,
+    htmlPages,
     googleFiles,
     sections,
     assets: otherFiles.map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, modifiedTime: f.modifiedTime })),

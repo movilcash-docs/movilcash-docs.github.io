@@ -1,4 +1,4 @@
-import type { WikiGoogleFile, WikiNotebook, WikiPdf, WikiSection } from './wikiTree'
+import type { WikiGoogleFile, WikiHtml, WikiNotebook, WikiPdf, WikiSection } from './wikiTree'
 
 export interface SectionLocation {
   section: WikiSection
@@ -38,6 +38,11 @@ export function findSectionForPdf(section: WikiSection, pdfId: string): SectionL
   return findSectionContaining(section, (s) => (s.pdfs ?? []).some((p) => p.id === pdfId))
 }
 
+/** Finds the section that directly contains the given HTML file (by id), searching the whole tree. */
+export function findSectionForHtml(section: WikiSection, htmlId: string): SectionLocation | null {
+  return findSectionContaining(section, (s) => (s.htmlPages ?? []).some((h) => h.id === htmlId))
+}
+
 /** Finds the section that directly contains the given Google Doc/Sheet (by id), searching the whole tree. */
 export function findSectionForGoogleFile(section: WikiSection, fileId: string): SectionLocation | null {
   return findSectionContaining(section, (s) => (s.googleFiles ?? []).some((f) => f.id === fileId))
@@ -53,6 +58,12 @@ export function findNotebookById(root: WikiSection, notebookId: string): WikiNot
 export function findPdfById(root: WikiSection, pdfId: string): WikiPdf | null {
   const location = findSectionForPdf(root, pdfId)
   return location?.section.pdfs.find((p) => p.id === pdfId) ?? null
+}
+
+/** Finds an HTML file anywhere in the tree by its own id — used to restore a shared deep link. */
+export function findHtmlById(root: WikiSection, htmlId: string): WikiHtml | null {
+  const location = findSectionForHtml(root, htmlId)
+  return location?.section.htmlPages.find((h) => h.id === htmlId) ?? null
 }
 
 /** Finds a Google Doc/Sheet anywhere in the tree by its own id — used to restore a shared deep link. */

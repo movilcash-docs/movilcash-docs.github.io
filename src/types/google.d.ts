@@ -27,6 +27,27 @@ declare namespace google.accounts.oauth2 {
   function revoke(accessToken: string, callback?: () => void): void
 }
 
+declare namespace google.accounts.id {
+  interface CredentialResponse {
+    /** The Google **ID token** (a JWT): this is the value to forward, not an access token. */
+    credential: string
+    select_by: string
+  }
+
+  interface IdConfiguration {
+    client_id: string
+    callback: (response: CredentialResponse) => void
+    /** Sign the user in automatically when exactly one Google session is available. */
+    auto_select?: boolean
+    use_fedcm_for_prompt?: boolean
+    cancel_on_tap_outside?: boolean
+  }
+
+  function initialize(config: IdConfiguration): void
+  function prompt(listener?: (notification: unknown) => void): void
+  function disableAutoSelect(): void
+}
+
 interface Window {
   google?: typeof google
   gapi?: {

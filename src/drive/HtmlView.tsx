@@ -128,6 +128,8 @@ export function HtmlView({ html, accessToken }: HtmlViewProps) {
       srcDoc={content}
       title={html.name}
       sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"
+      allow="fullscreen"
+      allowFullScreen
       className="h-[80vh] w-full rounded-md border bg-white"
     />
   )

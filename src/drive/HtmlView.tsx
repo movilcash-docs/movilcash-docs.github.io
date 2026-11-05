@@ -15,6 +15,11 @@ interface HtmlViewProps {
 // use the generic `mc-miniapp:*` names. Both are accepted/answered identically.
 const READY_TYPES = ['mc-monitor:ready', 'mc-miniapp:ready']
 const TOKEN_TYPES = ['mc-monitor:google-id-token', 'mc-miniapp:google-id-token']
+const CONFIG_TYPES = ['mc-monitor:config', 'mc-miniapp:config']
+
+// Per-environment API base URL handed to miniapps before the token. Unset → nothing is sent and
+// the miniapp uses its own build-time fallback.
+const MINIAPP_API_BASE_URL = import.meta.env.VITE_MINIAPP_API_BASE_URL
 
 /**
  * Renders an .html file from Drive inside a sandboxed iframe, so the file's own
@@ -62,13 +67,19 @@ export function HtmlView({ html, accessToken }: HtmlViewProps) {
   useEffect(() => {
     let ready = false
 
+    // targetOrigin must be "*" below: the strict sandbox gives the iframe an opaque origin, which
+    // no specific origin string can match. Each message is still delivered only to this iframe's
+    // own contentWindow, never broadcast to the whole page.
+    function sendConfig() {
+      const win = iframeRef.current?.contentWindow
+      if (!win || !MINIAPP_API_BASE_URL) return
+      for (const type of CONFIG_TYPES) win.postMessage({ type, apiBaseUrl: MINIAPP_API_BASE_URL }, '*')
+    }
+
     function pushToken() {
       const win = iframeRef.current?.contentWindow
       const idToken = getLatestIdToken()
       if (!ready || !idToken || !win) return
-      // targetOrigin must be "*" here: the strict sandbox gives the iframe an opaque origin, which
-      // no specific origin string can match. This is still delivered only to this iframe's own
-      // contentWindow, never broadcast to the whole page.
       for (const type of TOKEN_TYPES) win.postMessage({ type, idToken }, '*')
     }
 
@@ -80,6 +91,8 @@ export function HtmlView({ html, accessToken }: HtmlViewProps) {
       const type = (event.data as { type?: string } | null)?.type
       if (type && READY_TYPES.includes(type)) {
         ready = true
+        // Config first (the miniapp expects it before the token), then the token.
+        sendConfig()
         // Obtain (or refresh) the Google ID token; it arrives asynchronously via onIdToken, and
         // `ready` is remembered until then.
         void ensureGoogleIdToken().catch(() => {

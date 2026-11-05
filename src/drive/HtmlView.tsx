@@ -16,6 +16,9 @@ interface HtmlViewProps {
 const READY_TYPES = ['mc-monitor:ready', 'mc-miniapp:ready']
 const TOKEN_TYPES = ['mc-monitor:google-id-token', 'mc-miniapp:google-id-token']
 const CONFIG_TYPES = ['mc-monitor:config', 'mc-miniapp:config']
+const MAXIMIZE_TYPES = ['mc-monitor:maximize', 'mc-miniapp:maximize']
+const RESTORE_TYPES = ['mc-monitor:restore', 'mc-miniapp:restore']
+const MAXIMIZED_TYPES = ['mc-monitor:maximized', 'mc-miniapp:maximized']
 
 // Per-environment API base URL handed to miniapps before the token. Unset → nothing is sent and
 // the miniapp uses its own build-time fallback.
@@ -37,6 +40,9 @@ export function HtmlView({ html, accessToken }: HtmlViewProps) {
   const [content, setContent] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [errorReason, setErrorReason] = useState<string | null>(null)
+  // A miniapp can ask the wiki to make its iframe fill the whole browser viewport (not the OS
+  // fullscreen — that's `allowFullScreen`), toggled via the maximize/restore handshake below.
+  const [maximized, setMaximized] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   useEffect(() => {
@@ -66,6 +72,8 @@ export function HtmlView({ html, accessToken }: HtmlViewProps) {
   // actually asks for it, so plain (non-miniapp) HTML files never trigger it.
   useEffect(() => {
     let ready = false
+    // Leaving maximized state behind when switching to another file would be confusing.
+    setMaximized(false)
 
     // targetOrigin must be "*" below: the strict sandbox gives the iframe an opaque origin, which
     // no specific origin string can match. Each message is still delivered only to this iframe's
@@ -83,13 +91,20 @@ export function HtmlView({ html, accessToken }: HtmlViewProps) {
       for (const type of TOKEN_TYPES) win.postMessage({ type, idToken }, '*')
     }
 
+    function confirmMaximized(value: boolean) {
+      const win = iframeRef.current?.contentWindow
+      if (!win) return
+      for (const type of MAXIMIZED_TYPES) win.postMessage({ type, maximized: value }, '*')
+    }
+
     function handleMessage(event: MessageEvent) {
       // The iframe has an opaque origin (event.origin === "null"), so origin can't be checked.
       // The authoritative check is event.source: the message must genuinely come from the window
       // of the iframe we rendered — that can't be forged by another tab/frame.
       if (event.source !== iframeRef.current?.contentWindow) return
       const type = (event.data as { type?: string } | null)?.type
-      if (type && READY_TYPES.includes(type)) {
+      if (!type) return
+      if (READY_TYPES.includes(type)) {
         ready = true
         // Config first (the miniapp expects it before the token), then the token.
         sendConfig()
@@ -100,6 +115,12 @@ export function HtmlView({ html, accessToken }: HtmlViewProps) {
           // get one. Nothing actionable here.
         })
         pushToken()
+      } else if (MAXIMIZE_TYPES.includes(type)) {
+        setMaximized(true)
+        confirmMaximized(true)
+      } else if (RESTORE_TYPES.includes(type)) {
+        setMaximized(false)
+        confirmMaximized(false)
       }
     }
 
@@ -130,7 +151,11 @@ export function HtmlView({ html, accessToken }: HtmlViewProps) {
       sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"
       allow="fullscreen"
       allowFullScreen
-      className="h-[80vh] w-full rounded-md border bg-white"
+      className={
+        maximized
+          ? 'fixed inset-0 z-[9999] h-screen w-screen border-0 bg-white'
+          : 'h-[80vh] w-full rounded-md border bg-white'
+      }
     />
   )
 }

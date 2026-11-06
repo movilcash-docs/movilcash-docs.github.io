@@ -43,8 +43,20 @@ declare namespace google.accounts.id {
     cancel_on_tap_outside?: boolean
   }
 
+  /** Subset of the "Sign in with Google" button options we use (renderButton). */
+  interface GsiButtonConfiguration {
+    type?: 'standard' | 'icon'
+    theme?: 'outline' | 'filled_blue' | 'filled_black'
+    size?: 'large' | 'medium' | 'small'
+    text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin'
+    shape?: 'rectangular' | 'pill' | 'circle' | 'square'
+    logo_alignment?: 'left' | 'center'
+    locale?: string
+  }
+
   function initialize(config: IdConfiguration): void
   function prompt(listener?: (notification: unknown) => void): void
+  function renderButton(parent: HTMLElement, options: GsiButtonConfiguration): void
   function disableAutoSelect(): void
 }
 

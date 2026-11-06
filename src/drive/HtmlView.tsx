@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ensureGoogleIdToken, getLatestIdToken, onIdToken } from '../auth/googleIdToken'
+import { ensureGoogleIdToken, getLatestIdToken, onIdToken, renderGoogleIdButton } from '../auth/googleIdToken'
 import { getPageContent } from '../cache/pageCache'
 import { DriveApiError } from './driveApi'
 import type { WikiHtml } from './wikiTree'
@@ -43,7 +43,12 @@ export function HtmlView({ html, accessToken }: HtmlViewProps) {
   // A miniapp can ask the wiki to make its iframe fill the whole browser viewport (not the OS
   // fullscreen — that's `allowFullScreen`), toggled via the maximize/restore handshake below.
   const [maximized, setMaximized] = useState(false)
+  // When the silent Google One Tap / FedCM flow can't obtain an ID token (no FedCM-eligible session,
+  // cooldown, blocked cookies), we surface an interactive "Sign in with Google" button instead of
+  // leaving the miniapp stuck waiting forever for a token that will never arrive.
+  const [needsSignIn, setNeedsSignIn] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const signInButtonRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setContent(null)
@@ -72,8 +77,13 @@ export function HtmlView({ html, accessToken }: HtmlViewProps) {
   // actually asks for it, so plain (non-miniapp) HTML files never trigger it.
   useEffect(() => {
     let ready = false
-    // Leaving maximized state behind when switching to another file would be confusing.
+    // If the silent token doesn't arrive within this grace window after the miniapp announces it's
+    // ready, we assume One Tap / FedCM failed silently and reveal the interactive sign-in button.
+    const SIGN_IN_GRACE_MS = 2500
+    let graceTimer: number | undefined
+    // Leaving maximized state / a stale sign-in prompt behind when switching files would be confusing.
     setMaximized(false)
+    setNeedsSignIn(false)
 
     // targetOrigin must be "*" below: the strict sandbox gives the iframe an opaque origin, which
     // no specific origin string can match. Each message is still delivered only to this iframe's
@@ -88,6 +98,9 @@ export function HtmlView({ html, accessToken }: HtmlViewProps) {
       const win = iframeRef.current?.contentWindow
       const idToken = getLatestIdToken()
       if (!ready || !idToken || !win) return
+      // A token is in hand: no need for the fallback button anymore.
+      window.clearTimeout(graceTimer)
+      setNeedsSignIn(false)
       for (const type of TOKEN_TYPES) win.postMessage({ type, idToken }, '*')
     }
 
@@ -111,10 +124,17 @@ export function HtmlView({ html, accessToken }: HtmlViewProps) {
         // Obtain (or refresh) the Google ID token; it arrives asynchronously via onIdToken, and
         // `ready` is remembered until then.
         void ensureGoogleIdToken().catch(() => {
-          // Couldn't obtain an ID token (GIS blocked, no session, etc.); the miniapp just won't
-          // get one. Nothing actionable here.
+          // GIS itself failed to load/init (blocked, offline): go straight to the fallback button.
+          window.clearTimeout(graceTimer)
+          if (!getLatestIdToken()) setNeedsSignIn(true)
         })
         pushToken()
+        // If no token is pushed within the grace window, the silent flow failed quietly — offer the
+        // interactive sign-in button so the operator can still authenticate.
+        window.clearTimeout(graceTimer)
+        graceTimer = window.setTimeout(() => {
+          if (!getLatestIdToken()) setNeedsSignIn(true)
+        }, SIGN_IN_GRACE_MS)
       } else if (MAXIMIZE_TYPES.includes(type)) {
         setMaximized(true)
         confirmMaximized(true)
@@ -129,8 +149,18 @@ export function HtmlView({ html, accessToken }: HtmlViewProps) {
     return () => {
       window.removeEventListener('message', handleMessage)
       unsubscribe()
+      window.clearTimeout(graceTimer)
     }
   }, [html.id])
+
+  // Render the GIS "Sign in with Google" button once the fallback is shown. A successful click
+  // delivers a credential through onIdToken → pushToken, which clears needsSignIn and hides this.
+  useEffect(() => {
+    if (!needsSignIn || !signInButtonRef.current) return
+    void renderGoogleIdButton(signInButtonRef.current).catch(() => {
+      // Even rendering the button failed (GIS unavailable); nothing else to offer here.
+    })
+  }, [needsSignIn])
 
   if (error) {
     return (
@@ -144,18 +174,29 @@ export function HtmlView({ html, accessToken }: HtmlViewProps) {
   if (content === null) return <p className="text-muted-foreground text-sm">Cargando HTML…</p>
 
   return (
-    <iframe
-      ref={iframeRef}
-      srcDoc={content}
-      title={html.name}
-      sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"
-      allow="fullscreen"
-      allowFullScreen
-      className={
-        maximized
-          ? 'fixed inset-0 z-[9999] h-screen w-screen border-0 bg-white'
-          : 'h-[80vh] w-full rounded-md border bg-white'
-      }
-    />
+    <>
+      <iframe
+        ref={iframeRef}
+        srcDoc={content}
+        title={html.name}
+        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"
+        allow="fullscreen"
+        className={
+          maximized
+            ? 'fixed inset-0 z-[9999] h-screen w-screen border-0 bg-white'
+            : 'h-[80vh] w-full rounded-md border bg-white'
+        }
+      />
+      {needsSignIn && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50">
+          <div className="flex flex-col items-center gap-3 rounded-lg bg-white p-6 text-center shadow-lg">
+            <p className="text-sm text-gray-700">
+              Iniciá sesión con Google para usar esta miniapp
+            </p>
+            <div ref={signInButtonRef} className="flex justify-center" />
+          </div>
+        </div>
+      )}
+    </>
   )
 }

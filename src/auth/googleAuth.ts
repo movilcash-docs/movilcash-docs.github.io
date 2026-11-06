@@ -5,8 +5,19 @@ const GIS_SCRIPT_URL = 'https://accounts.google.com/gsi/client'
 // both are non-sensitive scopes Google grants without extra consent-screen setup.
 const SCOPES = 'https://www.googleapis.com/auth/drive email profile'
 
+export interface AccessTokenResult {
+  token: string
+  /**
+   * Seconds until *this specific* token expires, as reported by Google — NOT an assumed constant.
+   * Google can issue tokens shorter than the usual ~1h (e.g. bounded by the remaining lifetime of
+   * the underlying Google/Workspace session), so the refresh must be scheduled off this value or the
+   * app will keep using a dead token (Drive 401s) until a wrongly-late refresh fires.
+   */
+  expiresInSeconds: number
+}
+
 let tokenClient: google.accounts.oauth2.TokenClient | undefined
-let pendingResolve: ((token: string) => void) | undefined
+let pendingResolve: ((result: AccessTokenResult) => void) | undefined
 let pendingReject: ((error: Error) => void) | undefined
 
 function settlePending(fn: () => void) {
@@ -31,7 +42,7 @@ async function getTokenClient(): Promise<google.accounts.oauth2.TokenClient> {
         if (response.error) {
           pendingReject?.(new Error(response.error_description ?? response.error))
         } else {
-          pendingResolve?.(response.access_token)
+          pendingResolve?.({ token: response.access_token, expiresInSeconds: response.expires_in })
         }
       })
     },
@@ -47,10 +58,10 @@ export interface RequestTokenOptions {
   prompt?: 'none' | 'consent' | 'select_account'
 }
 
-export async function requestAccessToken(options: RequestTokenOptions = {}): Promise<string> {
+export async function requestAccessToken(options: RequestTokenOptions = {}): Promise<AccessTokenResult> {
   const client = await getTokenClient()
 
-  return new Promise<string>((resolve, reject) => {
+  return new Promise<AccessTokenResult>((resolve, reject) => {
     pendingResolve = resolve
     pendingReject = reject
     client.requestAccessToken({ prompt: options.prompt === 'none' ? '' : options.prompt })

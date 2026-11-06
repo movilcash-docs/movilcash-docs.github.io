@@ -37,11 +37,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const scheduleRefresh = useCallback((expiresInMs: number) => {
     window.clearTimeout(refreshTimer.current)
-    const delay = Math.max(expiresInMs - REFRESH_MARGIN_MS, 0)
+    // Normally refresh REFRESH_MARGIN_MS before expiry. If the token is shorter-lived than that
+    // margin (Google occasionally issues short tokens near the end of the Google session), refresh
+    // partway through its life instead of at delay 0 — otherwise a stream of short tokens would spin
+    // into a tight refresh loop and burn the daily token-grant quota.
+    const delay =
+      expiresInMs > REFRESH_MARGIN_MS
+        ? expiresInMs - REFRESH_MARGIN_MS
+        : Math.max(expiresInMs / 2, 10_000)
     refreshTimer.current = window.setTimeout(async () => {
       try {
-        const token = await requestAccessToken({ prompt: 'none' })
-        await applyTokenRef.current?.(token)
+        const { token, expiresInSeconds } = await requestAccessToken({ prompt: 'none' })
+        await applyTokenRef.current?.(token, expiresInSeconds)
       } catch {
         // Silent refresh failed (session gone, cookies blocked, etc.) — nothing left to do but
         // show the login screen; a manual signIn() will pop the interactive consent flow.
@@ -69,8 +76,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async () => {
     setState((s) => ({ ...s, isLoading: true, error: null }))
     try {
-      const token = await requestAccessToken({ prompt: 'consent' })
-      await applyToken(token)
+      const { token, expiresInSeconds } = await requestAccessToken({ prompt: 'consent' })
+      await applyToken(token, expiresInSeconds)
     } catch (err) {
       setState({ accessToken: null, user: null, isLoading: false, error: (err as Error).message })
     }
@@ -95,9 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false
     requestAccessToken({ prompt: 'none' })
-      .then(async (token) => {
+      .then(async ({ token, expiresInSeconds }) => {
         if (cancelled) return
-        await applyToken(token)
+        await applyToken(token, expiresInSeconds)
       })
       .catch(() => {
         if (cancelled) return
